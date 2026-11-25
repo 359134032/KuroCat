@@ -2396,6 +2396,8 @@ void tickAndRender(AppState& app) {
         showContextMenu(app, pt);
     }
 
+    app.physics.updateDazedCallout(CatRenderer::isDazed(activeSkin(app)) && app.settings.showKeyBadges);
+
     // Render 32-bit Premultiplied ARGB frame directly into DIB and present via UpdateLayeredWindow
     app.ensureBuffer(w, h);
     if (!app.memDC || !app.dibBits) return;

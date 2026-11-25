@@ -229,6 +229,8 @@ struct PurrSparkle {
     bool isSleepZ = false;
 };
 
+enum class DazedCallout { None, PickedUp, Petted, WokeUp };
+
 class CatPhysics {
 public:
     static constexpr float CanvasWidth  = 360.0f;
@@ -238,6 +240,7 @@ public:
     static constexpr Pt RightPawRest    = { 204.0f, 235.0f };
     static constexpr Pt HindFootRest    = { 214.0f, 234.0f };
     static constexpr Pt MouseBaseCenter = { 78.0f, 258.0f };
+    static constexpr float DazedCalloutLifetime = 1.65f;
 
     Spring2D leftPaw{LeftPawRest};
     Spring2D rightPaw{RightPawRest};
@@ -585,6 +588,39 @@ public:
         float dx = (canvasPoint.x - SeatAnchor.x) / 60.0f;
         headTilt.target = std::clamp(dx * 0.16f, -0.18f, 0.18f);
         headOffsetY.velocity += 18.0f;
+    }
+
+    void updateDazedCallout(bool enabled) {
+        if (!enabled) {
+            dazedCallout_ = DazedCallout::None;
+            dazedLifted_ = dazedPetted_ = dazedWasAsleep_ = false;
+            return;
+        }
+
+        bool lifted = isScruffDragging_ && scruffDrag.value > 0.18f;
+        bool petted = petHeadIntensity >= (dazedPetted_ ? 0.26f : 0.65f);
+        bool wokeUp = dazedWasAsleep_ && sleepiness < 0.24f;
+        if (sleepiness > 0.76f) dazedWasAsleep_ = true;
+        if (wokeUp) dazedWasAsleep_ = false;
+
+        DazedCallout next = DazedCallout::None;
+        if (lifted && !dazedLifted_) next = DazedCallout::PickedUp;
+        else if (!lifted && wokeUp) next = DazedCallout::WokeUp;
+        else if (!lifted && petted && !dazedPetted_) next = DazedCallout::Petted;
+        dazedLifted_ = lifted;
+        dazedPetted_ = petted;
+
+        constexpr float cooldown = 5.0f;
+        if (next != DazedCallout::None && (dazedCallout_ == DazedCallout::None || dazedCalloutAge() >= cooldown)) {
+            dazedCallout_ = next;
+            dazedCalloutStarted_ = time;
+        }
+    }
+
+    float dazedCalloutAge() const { return time - dazedCalloutStarted_; }
+
+    DazedCallout dazedCallout() const {
+        return dazedCalloutAge() < DazedCalloutLifetime ? dazedCallout_ : DazedCallout::None;
     }
 
     void step(float rawDt, const RECT& windowRect, InputEngine& engine, const CatSettings& settings,
@@ -1194,6 +1230,11 @@ private:
     bool isCurrentlyPetting_ = false;
     float petSparkleCooldown_ = 0.0f;
     float sleepZCooldown_ = 0.0f;
+    DazedCallout dazedCallout_ = DazedCallout::None;
+    float dazedCalloutStarted_ = 0.0f;
+    bool dazedLifted_ = false;
+    bool dazedPetted_ = false;
+    bool dazedWasAsleep_ = false;
 
     PhysicalKey recentLeftKey_ = PhysicalKey::None;
     double recentLeftTime_ = 0.0;
