@@ -243,6 +243,7 @@ public:
         std::vector<PhysicalKey> held(activeKeys.begin(), activeKeys.end());
         rawKeys_.clear();
         asyncKeys_.clear();
+        rawKeyDownTime_.clear();
         for (PhysicalKey k : held) recomputeUnifiedKeys(k);
         activeKeys.clear();
         pressedOrder.clear();
@@ -255,6 +256,9 @@ public:
         GetCursorPos(&lastCursorPos);
         lastRawKbTime_ = 0.0;
         lastRawMouseTime_ = 0.0;
+        lastRawLeftBtnTime_ = 0.0;
+        lastRawRightBtnTime_ = 0.0;
+        lastRawOtherBtnTime_ = 0.0;
     }
 
     /// Seconds since the last keyboard WM_INPUT arrived (used to spot UIPI-blocked games).
@@ -301,12 +305,12 @@ public:
                 lastRegularMouseEventTime_ = now;
             }
             if (m.usButtonFlags != 0) lastRegularMouseEventTime_ = now;
-            if (m.usButtonFlags & RI_MOUSE_LEFT_BUTTON_DOWN)   updateMouseButton(0, true);
-            if (m.usButtonFlags & RI_MOUSE_LEFT_BUTTON_UP)     updateMouseButton(0, false);
-            if (m.usButtonFlags & RI_MOUSE_RIGHT_BUTTON_DOWN)  updateMouseButton(1, true);
-            if (m.usButtonFlags & RI_MOUSE_RIGHT_BUTTON_UP)    updateMouseButton(1, false);
-            if (m.usButtonFlags & RI_MOUSE_MIDDLE_BUTTON_DOWN) updateMouseButton(2, true);
-            if (m.usButtonFlags & RI_MOUSE_MIDDLE_BUTTON_UP)   updateMouseButton(2, false);
+            if (m.usButtonFlags & RI_MOUSE_LEFT_BUTTON_DOWN)   { lastRawLeftBtnTime_ = now;  updateMouseButton(0, true); }
+            if (m.usButtonFlags & RI_MOUSE_LEFT_BUTTON_UP)     { lastRawLeftBtnTime_ = now;  updateMouseButton(0, false); }
+            if (m.usButtonFlags & RI_MOUSE_RIGHT_BUTTON_DOWN)  { lastRawRightBtnTime_ = now; updateMouseButton(1, true); }
+            if (m.usButtonFlags & RI_MOUSE_RIGHT_BUTTON_UP)    { lastRawRightBtnTime_ = now; updateMouseButton(1, false); }
+            if (m.usButtonFlags & RI_MOUSE_MIDDLE_BUTTON_DOWN) { lastRawOtherBtnTime_ = now; updateMouseButton(2, true); }
+            if (m.usButtonFlags & RI_MOUSE_MIDDLE_BUTTON_UP)   { lastRawOtherBtnTime_ = now; updateMouseButton(2, false); }
             if (m.usButtonFlags & RI_MOUSE_WHEEL)              lastMouseMoveTime = now;
         } else if (raw->header.dwType == RIM_TYPEHID) {
             if (raw->data.hid.dwSizeHid > 0 && raw->data.hid.dwCount > 0 &&
@@ -366,6 +370,9 @@ private:
     std::unordered_map<PhysicalKey, double> rawKeyDownTime_;
     double lastRawKbTime_ = 0.0;
     double lastRawMouseTime_ = 0.0;
+    double lastRawLeftBtnTime_ = 0.0;
+    double lastRawRightBtnTime_ = 0.0;
+    double lastRawOtherBtnTime_ = 0.0;
     bool tabletHardwareFound_ = false;
     double lastTabletEventTime_ = 0.0;
     double lastRegularMouseEventTime_ = 0.0;
@@ -381,6 +388,44 @@ private:
             rawKeyDownTime_.erase(key);
         }
         recomputeUnifiedKeys(key);
+    }
+
+    static int physicalKeyToVk(PhysicalKey k) {
+        switch (k) {
+            case PhysicalKey::A: return 'A'; case PhysicalKey::B: return 'B'; case PhysicalKey::C: return 'C';
+            case PhysicalKey::D: return 'D'; case PhysicalKey::E: return 'E'; case PhysicalKey::F: return 'F';
+            case PhysicalKey::G: return 'G'; case PhysicalKey::H: return 'H'; case PhysicalKey::I: return 'I';
+            case PhysicalKey::J: return 'J'; case PhysicalKey::K: return 'K'; case PhysicalKey::L: return 'L';
+            case PhysicalKey::M: return 'M'; case PhysicalKey::N: return 'N'; case PhysicalKey::O: return 'O';
+            case PhysicalKey::P: return 'P'; case PhysicalKey::Q: return 'Q'; case PhysicalKey::R: return 'R';
+            case PhysicalKey::S: return 'S'; case PhysicalKey::T: return 'T'; case PhysicalKey::U: return 'U';
+            case PhysicalKey::V: return 'V'; case PhysicalKey::W: return 'W'; case PhysicalKey::X: return 'X';
+            case PhysicalKey::Y: return 'Y'; case PhysicalKey::Z: return 'Z';
+            case PhysicalKey::K0: return '0'; case PhysicalKey::K1: return '1'; case PhysicalKey::K2: return '2';
+            case PhysicalKey::K3: return '3'; case PhysicalKey::K4: return '4'; case PhysicalKey::K5: return '5';
+            case PhysicalKey::K6: return '6'; case PhysicalKey::K7: return '7'; case PhysicalKey::K8: return '8';
+            case PhysicalKey::K9: return '9';
+            case PhysicalKey::Space: return VK_SPACE; case PhysicalKey::Enter: return VK_RETURN;
+            case PhysicalKey::Backspace: return VK_BACK; case PhysicalKey::Tab: return VK_TAB;
+            case PhysicalKey::Escape: return VK_ESCAPE; case PhysicalKey::CapsLock: return VK_CAPITAL;
+            case PhysicalKey::LeftShift: return VK_LSHIFT; case PhysicalKey::RightShift: return VK_RSHIFT;
+            case PhysicalKey::LeftControl: return VK_LCONTROL; case PhysicalKey::RightControl: return VK_RCONTROL;
+            case PhysicalKey::LeftOption: return VK_LMENU; case PhysicalKey::RightOption: return VK_RMENU;
+            case PhysicalKey::LeftCommand: return VK_LWIN; case PhysicalKey::RightCommand: return VK_RWIN;
+            case PhysicalKey::ArrowUp: return VK_UP; case PhysicalKey::ArrowDown: return VK_DOWN;
+            case PhysicalKey::ArrowLeft: return VK_LEFT; case PhysicalKey::ArrowRight: return VK_RIGHT;
+            case PhysicalKey::F1: return VK_F1; case PhysicalKey::F2: return VK_F2; case PhysicalKey::F3: return VK_F3;
+            case PhysicalKey::F4: return VK_F4; case PhysicalKey::F5: return VK_F5; case PhysicalKey::F6: return VK_F6;
+            case PhysicalKey::F7: return VK_F7; case PhysicalKey::F8: return VK_F8; case PhysicalKey::F9: return VK_F9;
+            case PhysicalKey::F10: return VK_F10; case PhysicalKey::F11: return VK_F11; case PhysicalKey::F12: return VK_F12;
+            case PhysicalKey::Minus: return VK_OEM_MINUS; case PhysicalKey::Equal: return VK_OEM_PLUS;
+            case PhysicalKey::LeftBracket: return VK_OEM_4; case PhysicalKey::RightBracket: return VK_OEM_6;
+            case PhysicalKey::Backslash: return VK_OEM_5; case PhysicalKey::Semicolon: return VK_OEM_1;
+            case PhysicalKey::Quote: return VK_OEM_7; case PhysicalKey::Comma: return VK_OEM_COMMA;
+            case PhysicalKey::Period: return VK_OEM_PERIOD; case PhysicalKey::Slash: return VK_OEM_2;
+            case PhysicalKey::Grave: return VK_OEM_3; case PhysicalKey::ForwardDelete: return VK_DELETE;
+            default: return 0;
+        }
     }
 
     void pollAsyncFallback(double now) {
@@ -415,36 +460,63 @@ private:
             {VK_OEM_3, PhysicalKey::Grave}, {VK_DELETE, PhysicalKey::ForwardDelete}
         };
 
-        bool rawIdle = (now - lastRawKbTime_) > 0.25;
+        bool rawIdle = (now - lastRawKbTime_) > 0.20;
         for (const auto& e : kTable) {
             bool isDown = (GetAsyncKeyState(e.vk) & 0x8000) != 0;
             bool inRaw = rawKeys_.count(e.key) > 0;
             bool inAsync = asyncKeys_.count(e.key) > 0;
-            bool rawStale = false;
-            if (inRaw) {
-                auto it = rawKeyDownTime_.find(e.key);
-                rawStale = rawIdle || (it == rawKeyDownTime_.end()) || ((now - it->second) > 0.25);
-            }
             if (isDown && !inRaw && !inAsync) {
                 asyncKeys_.insert(e.key);
-                recomputeUnifiedKeys(e.key);
-            } else if (!isDown && (inAsync || rawStale)) {
-                asyncKeys_.erase(e.key);
-                if (rawStale) {
-                    rawKeys_.erase(e.key);
-                    rawKeyDownTime_.erase(e.key);
-                }
                 recomputeUnifiedKeys(e.key);
             }
         }
 
-        if ((now - lastRawMouseTime_) > 0.25) {
+        // Verify every currently active/raw/async key (including keys not mapped in kTable or lost under UIPI/focus shifts).
+        std::vector<PhysicalKey> tracked;
+        tracked.reserve(activeKeys.size() + rawKeys_.size() + asyncKeys_.size());
+        for (PhysicalKey k : activeKeys) tracked.push_back(k);
+        for (PhysicalKey k : rawKeys_) if (!activeKeys.count(k)) tracked.push_back(k);
+        for (PhysicalKey k : asyncKeys_) if (!activeKeys.count(k) && !rawKeys_.count(k)) tracked.push_back(k);
+
+        for (PhysicalKey k : tracked) {
+            int vk = physicalKeyToVk(k);
+            bool isDown = (vk != 0) ? ((GetAsyncKeyState(vk) & 0x8000) != 0) : false;
+            bool inRaw = rawKeys_.count(k) > 0;
+            bool inAsync = asyncKeys_.count(k) > 0;
+            double downAge = 1e9;
+            if (auto it = rawKeyDownTime_.find(k); it != rawKeyDownTime_.end()) {
+                downAge = now - it->second;
+            }
+            bool rawStale = inRaw && (rawIdle || downAge > 0.20);
+            bool capStale = (k == PhysicalKey::CapsLock) && (downAge > 0.45);
+            if (capStale || (!isDown && (inAsync || rawStale || (!inRaw && activeKeys.count(k) > 0)))) {
+                asyncKeys_.erase(k);
+                rawKeys_.erase(k);
+                rawKeyDownTime_.erase(k);
+                recomputeUnifiedKeys(k);
+            }
+        }
+
+        // Reconcile each mouse button using its own button-event timestamp (not cursor motion!)
+        if (leftMouseDown) {
             bool lDown = (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
+            if (!lDown && (now - lastRawLeftBtnTime_) > 0.20) updateMouseButton(0, false);
+        } else if ((now - lastRawMouseTime_) > 0.25 && (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0) {
+            updateMouseButton(0, true);
+        }
+        if (rightMouseDown) {
             bool rDown = (GetAsyncKeyState(VK_RBUTTON) & 0x8000) != 0;
-            bool mDown = (GetAsyncKeyState(VK_MBUTTON) & 0x8000) != 0;
-            if (lDown != leftMouseDown) updateMouseButton(0, lDown);
-            if (rDown != rightMouseDown) updateMouseButton(1, rDown);
-            if (mDown != otherMouseDown) updateMouseButton(2, mDown);
+            if (!rDown && (now - lastRawRightBtnTime_) > 0.20) updateMouseButton(1, false);
+        } else if ((now - lastRawMouseTime_) > 0.25 && (GetAsyncKeyState(VK_RBUTTON) & 0x8000) != 0) {
+            updateMouseButton(1, true);
+        }
+        if (otherMouseDown) {
+            bool mDown = ((GetAsyncKeyState(VK_MBUTTON) & 0x8000) != 0)
+                      || ((GetAsyncKeyState(VK_XBUTTON1) & 0x8000) != 0)
+                      || ((GetAsyncKeyState(VK_XBUTTON2) & 0x8000) != 0);
+            if (!mDown && (now - lastRawOtherBtnTime_) > 0.20) updateMouseButton(2, false);
+        } else if ((now - lastRawMouseTime_) > 0.25 && (GetAsyncKeyState(VK_MBUTTON) & 0x8000) != 0) {
+            updateMouseButton(2, true);
         }
     }
 

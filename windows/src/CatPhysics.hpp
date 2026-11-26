@@ -42,9 +42,11 @@ struct CatSettings {
     bool footEasterEgg = true;
     bool tailEasterEgg = true;
     bool keyboardMarquee = true;
+    bool levelKeyboard = true;
     int obsCaptureMode = 0; // 0 = off, 1 = OBS transparent window capture, 2 = OBS green screen (#00FF00)
     bool obsHideDesktop = false;
     bool autoHideFullscreen = false;
+    bool autoHeadphonesOnMusic = true;
     int tabletMode = 0; // 0 = auto-detect tablet/stylus, 1 = always tablet, 2 = always mouse
     bool flipHorizontal = false;
     float rotationDeg = 0.0f; // -180..180 degrees
@@ -61,10 +63,13 @@ struct CatSettings {
     CatCoatTheme coatTheme = CatCoatTheme::ClassicBlack;
     KeyboardTheme keyboardTheme = KeyboardTheme::ClassicMilk;
     EyeColorTheme eyeTheme = EyeColorTheme::NeonChartreuse;
+    bool overrideSkinIris = false;
     // Content id (16 hex chars) of the imported .kurocat skin in use; empty = the built-in coatTheme.
     std::string customSkin;
     // Content id (16 hex chars) of the imported .kurokb / keyboard.json skin in use; empty = the built-in keyboardTheme.
     std::string customKeyboard;
+    // User-chosen skins directory (UTF-8); empty = default %APPDATA%\KuroCat\skins.
+    std::string customSkinsDir;
     int posX = -99999;
     int posY = -99999;
 
@@ -82,9 +87,12 @@ struct CatSettings {
         footEasterEgg    = readDword(L"FootEasterEgg", 1) != 0;
         tailEasterEgg    = readDword(L"TailEasterEgg", 1) != 0;
         keyboardMarquee  = readDword(L"KeyboardMarquee", 1) != 0;
+        levelKeyboard    = readDword(L"LevelKeyboard", 1) != 0;
+        KeyboardLayout::levelKeyboard() = levelKeyboard;
         obsCaptureMode   = std::clamp((int)readDword(L"OBSCaptureMode", 0), 0, 2);
         obsHideDesktop   = readDword(L"OBSHideDesktop", 0) != 0;
         autoHideFullscreen = readDword(L"AutoHideFullscreen", 0) != 0;
+        autoHeadphonesOnMusic = readDword(L"AutoHeadphonesOnMusic", 1) != 0;
         tabletMode       = std::clamp((int)readDword(L"TabletMode", 0), 0, 2);
         flipHorizontal   = readDword(L"FlipHorizontal", 0) != 0;
         {
@@ -99,10 +107,11 @@ struct CatSettings {
         fullClickThrough = readDword(L"FullClickThrough", 0) != 0;
         alwaysOnTop      = readDword(L"AlwaysOnTop", 1) != 0;
         runAsAdmin       = readDword(L"RunAsAdmin", 0) != 0;
-        scale            = std::clamp((float)readDword(L"ScalePct", 100) / 100.0f, 0.5f, 2.0f);
+        scale            = std::clamp((float)readDword(L"ScalePct", 100) / 100.0f, 0.45f, 2.50f);
         coatTheme        = (CatCoatTheme)std::clamp((int)readDword(L"CoatTheme", 0), 0, static_cast<int>(CatCoatTheme::Tabby));
         keyboardTheme    = (KeyboardTheme)std::clamp((int)readDword(L"KeyboardTheme", 0), 0, 2);
         eyeTheme         = (EyeColorTheme)std::clamp((int)readDword(L"EyeTheme", 0), 0, (int)EyeColorTheme::OliveGold);
+        overrideSkinIris = readDword(L"OverrideSkinIris", 0) != 0;
         {
             wchar_t buf[32] = {0};
             DWORD type = 0, sz = sizeof(buf) - sizeof(wchar_t);
@@ -129,6 +138,18 @@ struct CatSettings {
                 if (customKeyboard.size() != 16) customKeyboard.clear();
             }
         }
+        {
+            wchar_t pathBuf[1024] = {0};
+            DWORD type = 0, sz = sizeof(pathBuf) - sizeof(wchar_t);
+            customSkinsDir.clear();
+            if (RegQueryValueExW(hKey, L"CustomSkinsDir", nullptr, &type, (LPBYTE)pathBuf, &sz) == ERROR_SUCCESS && type == REG_SZ && pathBuf[0]) {
+                int len = WideCharToMultiByte(CP_UTF8, 0, pathBuf, -1, nullptr, 0, nullptr, nullptr);
+                if (len > 1) {
+                    customSkinsDir.assign((size_t)(len - 1), '\0');
+                    WideCharToMultiByte(CP_UTF8, 0, pathBuf, -1, &customSkinsDir[0], len, nullptr, nullptr);
+                }
+            }
+        }
         DWORD hasPos     = readDword(L"HasPos", 0);
         if (hasPos) {
             posX = (int)readDword(L"PosX", 0);
@@ -149,9 +170,11 @@ struct CatSettings {
         writeDword(L"FootEasterEgg", footEasterEgg ? 1 : 0);
         writeDword(L"TailEasterEgg", tailEasterEgg ? 1 : 0);
         writeDword(L"KeyboardMarquee", keyboardMarquee ? 1 : 0);
+        writeDword(L"LevelKeyboard", levelKeyboard ? 1 : 0);
         writeDword(L"OBSCaptureMode", (DWORD)obsCaptureMode);
         writeDword(L"OBSHideDesktop", obsHideDesktop ? 1 : 0);
         writeDword(L"AutoHideFullscreen", autoHideFullscreen ? 1 : 0);
+        writeDword(L"AutoHeadphonesOnMusic", autoHeadphonesOnMusic ? 1 : 0);
         writeDword(L"TabletMode", (DWORD)tabletMode);
         writeDword(L"FlipHorizontal", flipHorizontal ? 1 : 0);
         writeDword(L"RotationTenths", (DWORD)(int)std::lround(std::clamp(rotationDeg, -180.0f, 180.0f) * 10.0f));
@@ -167,6 +190,7 @@ struct CatSettings {
         writeDword(L"CoatTheme", (DWORD)coatTheme);
         writeDword(L"KeyboardTheme", (DWORD)keyboardTheme);
         writeDword(L"EyeTheme", (DWORD)eyeTheme);
+        writeDword(L"OverrideSkinIris", overrideSkinIris ? 1 : 0);
         {
             std::wstring id(customSkin.begin(), customSkin.end());
             RegSetValueExW(hKey, L"CustomSkin", 0, REG_SZ, (const BYTE*)id.c_str(), (DWORD)((id.size() + 1) * sizeof(wchar_t)));
@@ -175,11 +199,67 @@ struct CatSettings {
             std::wstring id(customKeyboard.begin(), customKeyboard.end());
             RegSetValueExW(hKey, L"CustomKeyboard", 0, REG_SZ, (const BYTE*)id.c_str(), (DWORD)((id.size() + 1) * sizeof(wchar_t)));
         }
+        {
+            std::wstring dirW;
+            if (!customSkinsDir.empty()) {
+                int len = MultiByteToWideChar(CP_UTF8, 0, customSkinsDir.data(), (int)customSkinsDir.size(), nullptr, 0);
+                if (len > 0) {
+                    dirW.assign((size_t)len, L'\0');
+                    MultiByteToWideChar(CP_UTF8, 0, customSkinsDir.data(), (int)customSkinsDir.size(), &dirW[0], len);
+                }
+            }
+            RegSetValueExW(hKey, L"CustomSkinsDir", 0, REG_SZ, (const BYTE*)dirW.c_str(), (DWORD)((dirW.size() + 1) * sizeof(wchar_t)));
+        }
         if (posX != -99999 && posY != -99999) {
             writeDword(L"HasPos", 1);
             writeDword(L"PosX", (DWORD)posX);
             writeDword(L"PosY", (DWORD)posY);
         }
+        RegCloseKey(hKey);
+    }
+
+    static std::string todayDateString() {
+        SYSTEMTIME st = {};
+        GetLocalTime(&st);
+        char buf[16];
+        std::snprintf(buf, sizeof(buf), "%04u-%02u-%02u", st.wYear, st.wMonth, st.wDay);
+        return buf;
+    }
+
+    static void loadStatsFromRegistry(std::string& day, int& todayKeys, int& petCount) {
+        day = todayDateString();
+        todayKeys = 0;
+        petCount = 0;
+        HKEY hKey = nullptr;
+        if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\KuroCat", 0, KEY_READ, &hKey) != ERROR_SUCCESS) return;
+        DWORD val = 0, sz = sizeof(val);
+        if (RegQueryValueExW(hKey, L"PetCount", nullptr, nullptr, (LPBYTE)&val, &sz) == ERROR_SUCCESS) {
+            petCount = (int)val;
+        }
+        wchar_t dayBuf[32] = {0};
+        DWORD type = 0, dsz = sizeof(dayBuf) - sizeof(wchar_t);
+        std::string savedDay;
+        if (RegQueryValueExW(hKey, L"StatsDay", nullptr, &type, (LPBYTE)dayBuf, &dsz) == ERROR_SUCCESS && type == REG_SZ) {
+            for (int i = 0; dayBuf[i] && i < 16; ++i) savedDay += (char)dayBuf[i];
+        }
+        if (savedDay == day) {
+            sz = sizeof(val);
+            if (RegQueryValueExW(hKey, L"TodayKeys", nullptr, nullptr, (LPBYTE)&val, &sz) == ERROR_SUCCESS) {
+                todayKeys = (int)val;
+            }
+        }
+        RegCloseKey(hKey);
+    }
+
+    static void saveStatsToRegistry(const std::string& day, int todayKeys, int petCount) {
+        HKEY hKey = nullptr;
+        if (RegCreateKeyExW(HKEY_CURRENT_USER, L"Software\\KuroCat", 0, nullptr, 0, KEY_WRITE, nullptr, &hKey, nullptr) != ERROR_SUCCESS) return;
+        DWORD kVal = (DWORD)std::max(0, todayKeys);
+        DWORD pVal = (DWORD)std::max(0, petCount);
+        RegSetValueExW(hKey, L"TodayKeys", 0, REG_DWORD, (const BYTE*)&kVal, sizeof(kVal));
+        RegSetValueExW(hKey, L"PetCount", 0, REG_DWORD, (const BYTE*)&pVal, sizeof(pVal));
+        std::wstring wday(day.begin(), day.end());
+        RegSetValueExW(hKey, L"StatsDay", 0, REG_SZ, (const BYTE*)wday.c_str(), (DWORD)((wday.size() + 1) * sizeof(wchar_t)));
         RegCloseKey(hKey);
     }
 };
@@ -229,8 +309,6 @@ struct PurrSparkle {
     bool isSleepZ = false;
 };
 
-enum class DazedCallout { None, PickedUp, Petted, WokeUp };
-
 class CatPhysics {
 public:
     static constexpr float CanvasWidth  = 360.0f;
@@ -240,7 +318,6 @@ public:
     static constexpr Pt RightPawRest    = { 204.0f, 235.0f };
     static constexpr Pt HindFootRest    = { 214.0f, 234.0f };
     static constexpr Pt MouseBaseCenter = { 78.0f, 258.0f };
-    static constexpr float DazedCalloutLifetime = 1.65f;
 
     Spring2D leftPaw{LeftPawRest};
     Spring2D rightPaw{RightPawRest};
@@ -278,11 +355,19 @@ public:
     Spring1D angerIntensity{0.0f};
     Spring1D dizzyIntensity{0.0f};
     float dizzyPhase = 0.0f;
+    Spring1D scruffDizzyIntensity{0.0f};
     bool isScruffDragging_ = false;
     float scruffDragDx_ = 0.0f;
     float scruffDragDy_ = 0.0f;
     float scruffDragAccumX_ = 0.0f;
     float scruffDragAccumY_ = 0.0f;
+    float scruffShakeDuration = 0.0f;
+    Pt scruffShakeDir_{0.0f, 0.0f};
+    float scruffShakeLastReversal_ = -100.0f;
+    float scruffDizzyTimer_ = 0.0f;
+    bool scruffStartedHoldingPen = false;
+    Pt scruffPenStartNib{60.0f, 261.0f};
+    float scruffPenStartAngle = -2.45f;
     float fastMouseDuration_ = 0.0f;
     float dizzyTimer_ = 0.0f;
     float fastTypeAccum_ = 0.0f;
@@ -291,6 +376,23 @@ public:
     Spring2D mouseOffset{{0.0f, 0.0f}};
     Spring1D mousePressLeft{0.0f};
     Spring1D mousePressRight{0.0f};
+    Spring1D mousePressMiddle{0.0f};
+
+    static constexpr float StylusBarrelGripDistance = 18.15f;
+    static constexpr float StylusBaseAngle = -2.45f;
+
+    float stylusAngle() const {
+        return StylusBaseAngle + tabletPenTilt.value;
+    }
+
+    Pt stylusPawGrip() const {
+        Pt nib = tabletNib.point();
+        float ang = stylusAngle();
+        return {
+            nib.x + std::cos(ang) * StylusBarrelGripDistance,
+            nib.y + std::sin(ang) * StylusBarrelGripDistance
+        };
+    }
 
     static Pt tabletQuadPoint(float u, float v) {
         constexpr Pt tl = { 18.0f, 235.0f }, tr = { 94.0f, 240.0f };
@@ -341,6 +443,9 @@ public:
     float petBodyIntensity = 0.0f;
     int totalPetSessions = 0;
     float sleepiness = 0.0f;
+    bool isMusicPlaying = false;
+    float musicIntensity = 0.0f;
+    float musicPhase = 0.0f;
     float yawnAmount = 0.0f;
     float yawnTimer_ = 0.0f;
     bool isYawning_ = false;
@@ -460,11 +565,17 @@ public:
                 douniMouseBlend.target = 1.0f;
             }
             if (button == 0) {
+                mousePressLeft.value = std::max(mousePressLeft.value, 0.35f);
                 mousePressLeft.target = 1.0f;
                 leftPaw.y.velocity += 130.0f;
-            } else {
+            } else if (button == 1) {
+                mousePressRight.value = std::max(mousePressRight.value, 0.35f);
                 mousePressRight.target = 1.0f;
                 leftPaw.y.velocity += 110.0f;
+            } else {
+                mousePressMiddle.value = std::max(mousePressMiddle.value, 0.35f);
+                mousePressMiddle.target = 1.0f;
+                leftPaw.y.velocity += 115.0f;
             }
             pupilScale.target = 1.12f;
             earTwitch.velocity -= 2.2f;
@@ -477,7 +588,8 @@ public:
             }
         } else {
             if (button == 0) mousePressLeft.target = 0.0f;
-            else mousePressRight.target = 0.0f;
+            else if (button == 1) mousePressRight.target = 0.0f;
+            else mousePressMiddle.target = 0.0f;
         }
     }
 
@@ -490,6 +602,12 @@ public:
                 scruffDropTimer = 0.0f;
                 scruffDragAccumX_ = 0.0f;
                 scruffDragAccumY_ = 0.0f;
+                scruffShakeDuration = 0.0f;
+                scruffShakeDir_ = { 0.0f, 0.0f };
+                scruffShakeLastReversal_ = -100.0f;
+                scruffStartedHoldingPen = isTabletActive && leftPawOnMouse;
+                scruffPenStartNib = tabletNib.point();
+                scruffPenStartAngle = stylusAngle();
             }
             scruffDragAccumX_ += dragDx;
             scruffDragAccumY_ += dragDy;
@@ -590,41 +708,8 @@ public:
         headOffsetY.velocity += 18.0f;
     }
 
-    void updateDazedCallout(bool enabled) {
-        if (!enabled) {
-            dazedCallout_ = DazedCallout::None;
-            dazedLifted_ = dazedPetted_ = dazedWasAsleep_ = false;
-            return;
-        }
-
-        bool lifted = isScruffDragging_ && scruffDrag.value > 0.18f;
-        bool petted = petHeadIntensity >= (dazedPetted_ ? 0.26f : 0.65f);
-        bool wokeUp = dazedWasAsleep_ && sleepiness < 0.24f;
-        if (sleepiness > 0.76f) dazedWasAsleep_ = true;
-        if (wokeUp) dazedWasAsleep_ = false;
-
-        DazedCallout next = DazedCallout::None;
-        if (lifted && !dazedLifted_) next = DazedCallout::PickedUp;
-        else if (!lifted && wokeUp) next = DazedCallout::WokeUp;
-        else if (!lifted && petted && !dazedPetted_) next = DazedCallout::Petted;
-        dazedLifted_ = lifted;
-        dazedPetted_ = petted;
-
-        constexpr float cooldown = 5.0f;
-        if (next != DazedCallout::None && (dazedCallout_ == DazedCallout::None || dazedCalloutAge() >= cooldown)) {
-            dazedCallout_ = next;
-            dazedCalloutStarted_ = time;
-        }
-    }
-
-    float dazedCalloutAge() const { return time - dazedCalloutStarted_; }
-
-    DazedCallout dazedCallout() const {
-        return dazedCalloutAge() < DazedCalloutLifetime ? dazedCallout_ : DazedCallout::None;
-    }
-
     void step(float rawDt, const RECT& windowRect, InputEngine& engine, const CatSettings& settings,
-              bool douniTyping = false, bool douniSkin = false) {
+              bool douniTyping = false, bool douniSkin = false, bool isClassicBuiltIn = false) {
         float dt = std::min(rawDt, 1.0f / 25.0f);
         time += dt;
         engine.pollMouse(dt);
@@ -748,12 +833,42 @@ public:
             scruffDragAccumY_ = 0.0f;
             scruffDragDx_ = scruffDragDx_ * 0.52f + instDx * 0.85f;
             scruffDragDy_ = scruffDragDy_ * 0.52f + instDy * 0.85f;
+
+            float shakeSpeed = std::hypot(instDx, instDy);
+            if (shakeSpeed > 9.0f) {
+                float dirDot = instDx * scruffShakeDir_.x + instDy * scruffShakeDir_.y;
+                if ((scruffShakeDir_.x != 0.0f || scruffShakeDir_.y != 0.0f) && dirDot < -16.0f) {
+                    scruffShakeLastReversal_ = time;
+                    scruffShakeDir_ = { instDx, instDy };
+                } else if (scruffShakeDir_.x == 0.0f && scruffShakeDir_.y == 0.0f) {
+                    scruffShakeDir_ = { instDx, instDy };
+                }
+            }
+            if (shakeSpeed > 7.5f && (time - scruffShakeLastReversal_) <= 0.48f) {
+                scruffShakeDuration += dt;
+                if (scruffShakeDuration >= 1.2f) {
+                    scruffDizzyTimer_ = 2.5f;
+                    scruffShakeDuration = 0.0f;
+                }
+            } else {
+                scruffShakeDuration = std::max(0.0f, scruffShakeDuration - dt * 1.4f);
+            }
         } else {
             scruffDropTimer = std::max(0.0f, scruffDropTimer - dt);
             if (scruffDrag.value < 0.02f) scruffHoldTime = 0.0f;
+            if (scruffDrag.value < 0.005f) scruffStartedHoldingPen = false;
             scruffDragDx_ *= 0.80f;
             scruffDragDy_ *= 0.80f;
+            scruffShakeDuration = 0.0f;
         }
+        if (scruffDizzyTimer_ > 0.0f) {
+            scruffDizzyTimer_ = std::max(0.0f, scruffDizzyTimer_ - dt);
+            scruffDizzyIntensity.target = 1.0f;
+            if (dizzyTimer_ <= 0.0f && fastMouseDuration_ <= 6.8f) dizzyPhase += dt * 7.5f;
+        } else {
+            scruffDizzyIntensity.target = 0.0f;
+        }
+        scruffDizzyIntensity.step(dt, 90.0f, 15.0f);
         scruffDrag.target = isScruffDragging_ ? 1.0f : 0.0f;
         scruffSwing.target = isScruffDragging_ ? 0.92f * std::tanh(scruffDragDx_ / 18.0f) : 0.0f;
         scruffSwingY.target = isScruffDragging_ ? 0.78f * std::tanh(-scruffDragDy_ / 18.0f) : 0.0f;
@@ -768,6 +883,7 @@ public:
             ? std::min(1.0f, (sleepiness - 0.65f) / 0.30f) : 0.0f;
         lieIntensity.step(dt, 55.0f, 14.0f);
         float lie = std::clamp(lieIntensity.value, 0.0f, 1.0f);
+        float classicSleepBlend = isClassicBuiltIn ? lie * lie * (3.0f - 2.0f * lie) : 0.0f;
 
         // Low-frequency episodic anger: ~3.2s of brisk typing (>= 260 KPM) triggers a brief ~4.2s grumpy burst,
         // followed by a ~28s cooldown so fast typists get occasional cute anger without staying angry non-stop!
@@ -803,8 +919,8 @@ public:
 
         // 3. Limb assignment (Left Paw, Right Paw, 3-Key Hind Foot!)
         constexpr double tapHoldWindow = 0.14;
-        bool mouseRecent = (now - engine.lastMouseMoveTime < 2.2) || engine.leftMouseDown || engine.rightMouseDown;
-        bool mouseActivelyUsed = (now - engine.lastMouseMoveTime < 0.75) || engine.leftMouseDown || engine.rightMouseDown;
+        bool mouseRecent = (now - engine.lastMouseMoveTime < 2.2) || engine.leftMouseDown || engine.rightMouseDown || engine.otherMouseDown;
+        bool mouseActivelyUsed = (now - engine.lastMouseMoveTime < 0.75) || engine.leftMouseDown || engine.rightMouseDown || engine.otherMouseDown;
 
         std::vector<PhysicalKey> leftCands, rightCands;
         for (PhysicalKey k : orderedKeys) {
@@ -844,21 +960,33 @@ public:
             }
         }
 
-        if (leftKey == PhysicalKey::None && recentLeftKey_ != PhysicalKey::None && now - recentLeftTime_ < tapHoldWindow) {
+        if (recentLeftKey_ != PhysicalKey::None && now - recentLeftTime_ >= tapHoldWindow) {
+            recentLeftKey_ = PhysicalKey::None;
+        }
+        if (recentRightKey_ != PhysicalKey::None && now - recentRightTime_ >= tapHoldWindow) {
+            recentRightKey_ = PhysicalKey::None;
+        }
+        if (leftKey == PhysicalKey::None && recentLeftKey_ != PhysicalKey::None) {
             leftKey = recentLeftKey_;
         }
-        if (rightKey == PhysicalKey::None && recentRightKey_ != PhysicalKey::None && now - recentRightTime_ < tapHoldWindow) {
+        if (rightKey == PhysicalKey::None && recentRightKey_ != PhysicalKey::None) {
             rightKey = recentRightKey_;
         }
 
         // Subtle mini-mouse movement
+        bool hasRot = std::fabs(settings.rotationDeg) > 0.05f;
+        float rotRad = hasRot ? (settings.rotationDeg * 3.14159265f / 180.0f) : 0.0f;
+        float flipSign = settings.flipHorizontal ? -1.0f : 1.0f;
+        float rotVelDx = hasRot ? (engine.mouseVelocity.x * std::cos(-rotRad) - engine.mouseVelocity.y * std::sin(-rotRad)) : engine.mouseVelocity.x;
+        float rotVelDy = hasRot ? (engine.mouseVelocity.x * std::sin(-rotRad) + engine.mouseVelocity.y * std::cos(-rotRad)) : engine.mouseVelocity.y;
         mouseOffset.setTarget({
-            std::clamp(engine.mouseVelocity.x * 0.0045f, -5.5f, 5.5f),
-            std::clamp(engine.mouseVelocity.y * 0.0045f, -4.5f, 4.5f)
+            std::clamp(rotVelDx * 0.0045f * flipSign, -5.5f, 5.5f),
+            std::clamp(rotVelDy * 0.0045f, -4.5f, 4.5f)
         });
         mouseOffset.step(dt, 120.0f, 16.0f);
         mousePressLeft.step(dt, 400.0f, 24.0f);
         mousePressRight.step(dt, 400.0f, 24.0f);
+        mousePressMiddle.step(dt, 400.0f, 24.0f);
 
         Pt liveMouse = { MouseBaseCenter.x + mouseOffset.point().x, MouseBaseCenter.y + mouseOffset.point().y };
 
@@ -871,12 +999,13 @@ public:
             float mw = std::max(1.0f, (float)(monRect.right - monRect.left));
             float mh = std::max(1.0f, (float)(monRect.bottom - monRect.top));
             float nx = std::clamp((float)(engine.lastCursorPos.x - monRect.left) / mw, 0.0f, 1.0f);
+            float mappedNx = settings.flipHorizontal ? (1.0f - nx) : nx;
             float ny = std::clamp((float)(engine.lastCursorPos.y - monRect.top) / mh, 0.0f, 1.0f);
-            tabletNib.setTarget(tabletQuadPoint(0.25f + nx * 0.64f, 0.16f + ny * 0.68f));
+            tabletNib.setTarget(tabletQuadPoint(0.25f + mappedNx * 0.64f, 0.16f + ny * 0.68f));
             tabletNib.step(dt, 240.0f, 20.0f);
             tabletPenPress.target = engine.leftMouseDown ? 0.88f : 0.0f;
             tabletPenPress.step(dt, 360.0f, 22.0f);
-            tabletPenTilt.target = std::clamp(engine.mouseVelocity.x * 0.00018f, -0.22f, 0.22f);
+            tabletPenTilt.target = std::clamp(engine.mouseVelocity.x * 0.00018f * flipSign, -0.22f, 0.22f);
             tabletPenTilt.step(dt, 120.0f, 14.0f);
         } else {
             tabletPenPress.target = 0.0f;
@@ -995,7 +1124,7 @@ public:
             } else if (mouseRecent && sleepiness < 0.3f) {
                 if (isTabletActive) {
                     Pt nib = tabletNib.point();
-                    leftPaw.setTarget({ nib.x + 6.0f, nib.y - 7.0f });
+                    leftPaw.setTarget(stylusPawGrip());
                     if (engine.leftMouseDown) {
                         if (tabletTrail.empty() || std::hypot(nib.x - tabletTrail.back().point.x, nib.y - tabletTrail.back().point.y) >= 1.8f) {
                             tabletTrail.push_back({ nib, 0.0f });
@@ -1093,9 +1222,9 @@ public:
         bodyShiftX.target = std::clamp(targetShiftX, -16.0f, 16.0f);
         bodyTilt.target = std::clamp(targetBodyTilt, -0.12f, 0.12f) + scruffSwing.value * scruff;
         bodySquash.target = 1.0f - hunt * 0.11f + scruff * 0.16f;
-        headOffsetY.target = ((leftPawTyping || rightPawTyping) ? 3.5f : (sleepiness * 5.0f + hunt * 10.5f))
+        headOffsetY.target = ((leftPawTyping || rightPawTyping) ? 3.5f : (sleepiness * 5.0f * (1.0f - classicSleepBlend) + hunt * 10.5f))
             - scruff * 10.0f;
-        earFold.target = std::max(petHeadIntensity * 0.7f, petBodyIntensity * 0.45f) + sleepiness * 0.25f - hunt * 0.18f
+        earFold.target = std::max(petHeadIntensity * 0.7f, petBodyIntensity * 0.45f) + sleepiness * 0.25f * (1.0f - 0.45f * classicSleepBlend) - hunt * 0.18f
             + scruff * 0.35f + anger * 0.45f + dizzy * 0.35f;
         earTwitch.target = 0.0f;
 
@@ -1113,11 +1242,24 @@ public:
 
         float winW = std::max(1.0f, (float)(windowRect.right - windowRect.left));
         float winScale = std::max(0.2f, winW / CanvasWidth);
-        float headScreenX = (float)windowRect.left + eyeOrigin.x * winScale;
-        float headScreenY = (float)windowRect.top  + eyeOrigin.y * winScale;
+        float headCanvasX = settings.flipHorizontal ? (CanvasWidth - eyeOrigin.x) : eyeOrigin.x;
+        float headCanvasY = eyeOrigin.y;
+        if (hasRot) {
+            float fitScale = 1.0f - std::fabs(std::sin(rotRad)) * 0.14f;
+            float dx = headCanvasX - CanvasWidth * 0.5f;
+            float dy = headCanvasY - CanvasHeight * 0.5f;
+            headCanvasX = CanvasWidth * 0.5f + (dx * std::cos(rotRad) - dy * std::sin(rotRad)) * fitScale;
+            headCanvasY = CanvasHeight * 0.5f + (dx * std::sin(rotRad) + dy * std::cos(rotRad)) * fitScale;
+        }
+        float headScreenX = (float)windowRect.left + headCanvasX * winScale;
+        float headScreenY = (float)windowRect.top  + headCanvasY * winScale;
 
-        float curDx = ((float)engine.lastCursorPos.x - headScreenX) / 290.0f;
-        float curDy = ((float)engine.lastCursorPos.y - headScreenY) / 260.0f;
+        float rawWorldDx = (float)engine.lastCursorPos.x - headScreenX;
+        float rawWorldDy = (float)engine.lastCursorPos.y - headScreenY;
+        float localWorldDx = hasRot ? (rawWorldDx * std::cos(-rotRad) - rawWorldDy * std::sin(-rotRad)) : rawWorldDx;
+        float localWorldDy = hasRot ? (rawWorldDx * std::sin(-rotRad) + rawWorldDy * std::cos(-rotRad)) : rawWorldDy;
+        float curDx = (localWorldDx / 290.0f) * flipSign;
+        float curDy = localWorldDy / 260.0f;
         float curMag = std::hypot(curDx, curDy);
         float clampedCur = std::min(1.0f, curMag);
         float cursorNX = curMag > 0.001f ? (curDx / curMag) * clampedCur : 0.0f;
@@ -1133,12 +1275,27 @@ public:
             lookY = cursorNY * 0.72f + 0.25f;
         }
 
+        float wantMusic = (isMusicPlaying && settings.autoHeadphonesOnMusic) ? 1.0f : 0.0f;
+        float musicRate = wantMusic > musicIntensity ? 3.2f : 2.0f;
+        musicIntensity += (wantMusic - musicIntensity) * std::min(1.0f, dt * musicRate);
+        if (musicIntensity < 0.002f && wantMusic == 0.0f) musicIntensity = 0.0f;
+        if (musicIntensity > 0.005f) {
+            musicPhase += dt * 5.86f;
+            if (musicPhase > 6283.18f) musicPhase -= 6283.18f;
+        }
+        float musicRhythm = musicIntensity * (1.0f - std::min(1.0f, sleepiness * 1.1f)) *
+                            (1.0f - std::min(1.0f, scruffDrag.value * 1.2f)) *
+                            (1.0f - std::min(1.0f, dizzyIntensity.value * 1.4f)) *
+                            (1.0f - std::min(1.0f, angerIntensity.value * 0.8f));
+        float musicNod = std::fabs(std::sin(musicPhase)) * 0.14f * musicRhythm;
+        float musicSway = std::sin(musicPhase * 0.5f) * 0.068f * musicRhythm;
+
         if (sleepiness > 0.45f) {
             headYaw.target = 0.0f;
-            headPitch.target = 0.45f * sleepiness;
+            headPitch.target = 0.45f * sleepiness * (1.0f - 0.35f * classicSleepBlend);
         } else {
             headYaw.target = std::clamp(lookX, -1.0f, 1.0f);
-            headPitch.target = std::clamp(lookY, -1.0f, 1.0f);
+            headPitch.target = std::clamp(lookY + musicNod, -1.0f, 1.0f);
         }
         float headStiff = 88.0f + hunt * 75.0f;
         float headDamp  = 14.5f + hunt * 4.5f;
@@ -1146,7 +1303,7 @@ public:
         headPitch.step(dt, headStiff, headDamp);
 
         if (now - lastPetTime_ > 0.28) {
-            headTilt.target = bodyTilt.target * 0.45f + headYaw.value * (0.11f + hunt * 0.05f) - headYaw.value * headPitch.value * 0.04f + lie * 0.12f;
+            headTilt.target = bodyTilt.target * 0.45f + headYaw.value * (0.11f + hunt * 0.05f) - headYaw.value * headPitch.value * 0.04f + lie * 0.12f * (1.0f - 0.5f * classicSleepBlend) + musicSway;
         }
         headTilt.step(dt, 130.0f, 16.0f);
 
@@ -1230,11 +1387,6 @@ private:
     bool isCurrentlyPetting_ = false;
     float petSparkleCooldown_ = 0.0f;
     float sleepZCooldown_ = 0.0f;
-    DazedCallout dazedCallout_ = DazedCallout::None;
-    float dazedCalloutStarted_ = 0.0f;
-    bool dazedLifted_ = false;
-    bool dazedPetted_ = false;
-    bool dazedWasAsleep_ = false;
 
     PhysicalKey recentLeftKey_ = PhysicalKey::None;
     double recentLeftTime_ = 0.0;

@@ -74,7 +74,11 @@ final class InputEngine {
     private var permissionCheckTimer: Timer?
     private var workspaceObservers: [NSObjectProtocol] = []
     private var lastReconcileTime: CFTimeInterval = 0
+    private var lastPermissionCheckTime: CFTimeInterval = 0
     private var keyDownTimes: [PhysicalKey: CFTimeInterval] = [:]
+    private var mouseDownTimes: [Int: CFTimeInterval] = [:]
+    private var cachedScreenFrames: [CGRect] = NSScreen.screens.map { $0.frame }
+    private var screenObserver: NSObjectProtocol?
 
     private static let keyToCGCodes: [PhysicalKey: [CGKeyCode]] = {
         var map: [PhysicalKey: [CGKeyCode]] = [:]
@@ -117,10 +121,23 @@ final class InputEngine {
     }
 
     var currentKPM: Int {
-        let now = CACurrentMediaTime()
-        let cutoff = now - 10.0
-        let count = recentKeyTimes.filter { $0 >= cutoff }.count
+        guard !recentKeyTimes.isEmpty else { return 0 }
+        let cutoff = CACurrentMediaTime() - 10.0
+        var count = 0
+        for t in recentKeyTimes.reversed() {
+            if t >= cutoff { count += 1 }
+            else { break }
+        }
         return count * 6
+    }
+
+    func screenFrame(containing point: CGPoint) -> CGRect {
+        if cachedScreenFrames.isEmpty {
+            cachedScreenFrames = NSScreen.screens.map { $0.frame }
+        }
+        return cachedScreenFrames.first { $0.contains(point) }
+            ?? cachedScreenFrames.first
+            ?? CGRect(x: 0, y: 0, width: 1440, height: 900)
     }
 
     private init() {
@@ -147,11 +164,35 @@ final class InputEngine {
             }
             workspaceObservers.append(obs)
         }
+        let reconcileNames: [NSNotification.Name] = [
+            NSWorkspace.didActivateApplicationNotification,
+            NSWorkspace.activeSpaceDidChangeNotification
+        ]
+        for name in reconcileNames {
+            let obs = wsCenter.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                self?.reconcileStuckKeys(now: CACurrentMediaTime(), force: true)
+            }
+            workspaceObservers.append(obs)
+        }
+
+        screenObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.cachedScreenFrames = NSScreen.screens.map { $0.frame }
+        }
 
         // Periodically check if the user just granted Input Monitoring permission
         permissionCheckTimer?.invalidate()
+        lastPermissionCheckTime = CACurrentMediaTime()
         let timer = Timer(timeInterval: 1.5, repeats: true) { [weak self] _ in
             guard let self else { return }
+            let now = CACurrentMediaTime()
+            if self.isHIDActive && self.isTapActive && (now - self.lastPermissionCheckTime < 4.5) {
+                return
+            }
+            self.lastPermissionCheckTime = now
             let prevStatus = self.status
             self.refreshPermissions()
             if !self.inputMonitoringAllowed && self.isHIDActive {
@@ -178,6 +219,7 @@ final class InputEngine {
                 self.notifyStatus()
             }
         }
+        timer.tolerance = 0.5
         RunLoop.main.add(timer, forMode: .common)
         permissionCheckTimer = timer
     }
@@ -185,6 +227,10 @@ final class InputEngine {
     func stop() {
         permissionCheckTimer?.invalidate()
         permissionCheckTimer = nil
+        if let obs = screenObserver {
+            NotificationCenter.default.removeObserver(obs)
+            screenObserver = nil
+        }
         let wsCenter = NSWorkspace.shared.notificationCenter
         for obs in workspaceObservers {
             wsCenter.removeObserver(obs)
@@ -214,26 +260,32 @@ final class InputEngine {
         }
     }
 
-    /// Called at 60fps from the render loop to sample global cursor motion (requires zero permissions).
-    func pollMouse(dt: CGFloat) {
+    /// Called from the render loop to sample global cursor motion (requires zero permissions).
+    func pollMouse(dt: CGFloat, now: CFTimeInterval = CACurrentMediaTime()) {
         let loc = NSEvent.mouseLocation
         let dx = loc.x - lastMouseLocation.x
         let dy = loc.y - lastMouseLocation.y
-        let dist = hypot(dx, dy)
-        if dist > 0.4 {
-            lastMouseMoveTime = CACurrentMediaTime()
+        if dx * dx + dy * dy > 0.16 {
+            lastMouseMoveTime = now
             if dt > 0.001 {
                 mouseVelocity = CGVector(dx: dx / dt, dy: dy / dt)
             }
-        } else {
-            mouseVelocity = CGVector(dx: mouseVelocity.dx * 0.82, dy: mouseVelocity.dy * 0.82)
+        } else if mouseVelocity.dx != 0 || mouseVelocity.dy != 0 {
+            let decay = pow(0.82, max(1.0, dt * 60.0))
+            let nx = mouseVelocity.dx * decay
+            let ny = mouseVelocity.dy * decay
+            mouseVelocity = (abs(nx) < 0.5 && abs(ny) < 0.5) ? .zero : CGVector(dx: nx, dy: ny)
         }
         lastMouseLocation = loc
 
-        // Keep KPM sliding window clean
-        let now = CACurrentMediaTime()
-        if recentKeyTimes.count > 120 {
-            recentKeyTimes.removeAll { now - $0 > 12.0 }
+        // Keep KPM sliding window clean without leaking stale entries when idle
+        if let oldest = recentKeyTimes.first, now - oldest > 12.0 {
+            let cutoff = now - 12.0
+            if let keepFrom = recentKeyTimes.firstIndex(where: { $0 >= cutoff }) {
+                recentKeyTimes.removeFirst(keepFrom)
+            } else {
+                recentKeyTimes.removeAll(keepingCapacity: true)
+            }
         }
         reconcileStuckKeys(now: now)
     }
@@ -254,8 +306,8 @@ final class InputEngine {
         }
     }
 
-    private func reconcileStuckKeys(now: CFTimeInterval) {
-        guard now - lastReconcileTime >= 0.20 else { return }
+    private func reconcileStuckKeys(now: CFTimeInterval, force: Bool = false) {
+        guard force || now - lastReconcileTime >= 0.16 else { return }
         lastReconcileTime = now
 
         // Always keep pressedOrder strictly synced with activeKeys (guards against stopHID/stopEventTap races).
@@ -264,12 +316,14 @@ final class InputEngine {
         }
 
         if !activeKeys.isEmpty {
+            let maxMismatchHold: CFTimeInterval = force ? 0.05 : 0.18
             var stale: [PhysicalKey] = []
             for key in activeKeys {
                 let heldFor = now - (keyDownTimes[key] ?? 0)
                 // Check per-key (not global lastKeyActivityTime) so a stuck key releases
-                // immediately even while the user keeps typing other keys!
-                if heldFor > 0.25 && !isKeyPhysicallyDown(key) {
+                // immediately even while the user keeps typing other keys! Also cap CapsLock toggle state.
+                if (heldFor > maxMismatchHold && !isKeyPhysicallyDown(key))
+                    || (key == .capsLock && heldFor > 0.45) {
                     stale.append(key)
                 }
             }
@@ -286,11 +340,18 @@ final class InputEngine {
             }
         }
 
-        if (leftMouseDown || rightMouseDown || otherMouseDown) && (now - lastMouseClickTime > 0.35) {
+        if leftMouseDown || rightMouseDown || otherMouseDown {
             let buttons = NSEvent.pressedMouseButtons
-            if leftMouseDown && (buttons & 1) == 0 { updateMouseButton(0, isDown: false) }
-            if rightMouseDown && (buttons & 2) == 0 { updateMouseButton(1, isDown: false) }
-            if otherMouseDown && (buttons & ~3) == 0 { updateMouseButton(2, isDown: false) }
+            let mouseMinHold: CFTimeInterval = force ? 0.05 : 0.18
+            if leftMouseDown && (buttons & 1) == 0 && (now - (mouseDownTimes[0] ?? 0) > mouseMinHold) {
+                updateMouseButton(0, isDown: false)
+            }
+            if rightMouseDown && (buttons & 2) == 0 && (now - (mouseDownTimes[1] ?? 0) > mouseMinHold) {
+                updateMouseButton(1, isDown: false)
+            }
+            if otherMouseDown && (buttons & ~3) == 0 && (now - (mouseDownTimes[2] ?? 0) > mouseMinHold) {
+                updateMouseButton(2, isDown: false)
+            }
         }
     }
 
@@ -589,6 +650,9 @@ final class InputEngine {
             if let tap = eventTap {
                 CGEvent.tapEnable(tap: tap, enable: true)
             }
+            DispatchQueue.main.async { [weak self] in
+                self?.reconcileStuckKeys(now: CACurrentMediaTime(), force: true)
+            }
             return
         }
 
@@ -821,7 +885,12 @@ final class InputEngine {
         if prev != isDown {
             let now = CACurrentMediaTime()
             lastMouseMoveTime = now
-            if isDown { lastMouseClickTime = now }
+            if isDown {
+                lastMouseClickTime = now
+                mouseDownTimes[button] = now
+            } else {
+                mouseDownTimes.removeValue(forKey: button)
+            }
             onMouseClick?(button, isDown)
         }
     }
@@ -870,5 +939,6 @@ final class InputEngine {
     func flushStats() {
         UserDefaults.standard.set(statsDayString, forKey: "KuroCat.StatsDay")
         UserDefaults.standard.set(totalKeystrokesToday, forKey: "KuroCat.TodayKeys")
+        UserDefaults.standard.synchronize()
     }
 }

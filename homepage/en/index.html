@@ -2,1010 +2,717 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>KuroCat Official — Free Open-Source Native Desktop Cat Pet (Bongo Cat Alternative)</title>
-  <meta name="description" content="KuroCat official website (kurocat.cc): Free MIT open-source native desktop cat pet &amp; Bongo Cat alternative for macOS, Windows (802 KB single exe), Linux, and UOS. Real-time 2.5D head tracking, graphics tablet stylus mode, OBS transparent/green overlay, browser Skin Workshop, zero keystroke upload." />
-  <meta name="keywords" content="KuroCat,KuroCat desktop pet,Bongo Cat alternative,open source desktop pet,macOS desktop cat,Windows typing cat,Linux desktop pet,OBS cat overlay,streaming typing cat,graphics tablet desktop pet,kurocat.cc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>KuroCat Official | Free Open-Source Desktop Cat Pet (All Platforms)</title>
+  <meta name="description" content="KuroCat is a free, open-source native desktop cat: it taps keys as you type and widens its eyes when you shake the mouse. Built in Swift, Win32 C++ and GTK3 (850 KB single exe on Windows) for macOS, Windows, Linux and UOS, with OBS transparent and green-screen capture, an online Skin Workshop, and zero keystroke logging or upload." />
+  <meta name="keywords" content="KuroCat,desktop pet,desktop cat,Bongo Cat alternative,typing cat,OBS overlay cat,macOS desktop pet,Windows desktop pet,Linux desktop pet,open source desktop pet" />
   <meta name="author" content="chanke17" />
   <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
-  <meta name="theme-color" content="#F7F5F0" />
+  <meta name="theme-color" content="#ffffff" />
+  <meta name="color-scheme" content="light" />
   <link rel="canonical" href="https://kurocat.cc/en/" />
   <link rel="alternate" hreflang="zh-CN" href="https://kurocat.cc/" />
   <link rel="alternate" hreflang="en" href="https://kurocat.cc/en/" />
-  <link rel="alternate" hreflang="x-default" href="https://kurocat.cc/en/" />
+  <link rel="alternate" hreflang="x-default" href="https://kurocat.cc/" />
 
-  <!-- Open Graph / Social Sharing -->
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="KuroCat" />
   <meta property="og:locale" content="en_US" />
   <meta property="og:locale:alternate" content="zh_CN" />
-  <meta property="og:title" content="KuroCat — Free Open-Source Native Desktop Cat Pet" />
-  <meta property="og:description" content="802 KB native Bongo Cat alternative for macOS, Windows, Linux &amp; UOS. 2.5D head tracking, graphics tablet mode, OBS transparent &amp; green-screen overlay, custom browser Skin Workshop, zero keystroke logging." />
+  <meta property="og:title" content="KuroCat Official | Free Open-Source Desktop Cat Pet (All Platforms)" />
+  <meta property="og:description" content="KuroCat is a free, open-source native desktop cat: it taps keys as you type and widens its eyes when you shake the mouse. Built in Swift, Win32 C++ and GTK3 (850 KB single exe on Windows) for macOS, Windows, Linux and UOS, with OBS transparent and green-screen capture, an online Skin Workshop, and zero keystroke logging or upload." />
   <meta property="og:url" content="https://kurocat.cc/en/" />
   <meta property="og:image" content="https://kurocat.cc/assets/og-cover.png" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
-  <meta property="og:image:alt" content="KuroCat native open-source desktop cat pet preview with live interactive web pet and switchable skins" />
+  <meta property="og:image:alt" content="KuroCat open-source native desktop cat website preview with live interactive web pet" />
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="KuroCat — Free Open-Source Native Desktop Cat Pet" />
-  <meta name="twitter:description" content="802 KB native Bongo Cat alternative for macOS, Windows, Linux &amp; UOS. 2.5D head tracking, OBS overlay, graphics tablet mode, Skin Workshop, zero keystroke upload." />
+  <meta name="twitter:title" content="KuroCat Official | Free Open-Source Desktop Cat Pet (All Platforms)" />
+  <meta name="twitter:description" content="KuroCat is a free, open-source native desktop cat: it taps keys as you type and widens its eyes when you shake the mouse. Built in Swift, Win32 C++ and GTK3 (850 KB single exe on Windows) for macOS, Windows, Linux and UOS, with OBS transparent and green-screen capture, an online Skin Workshop, and zero keystroke logging or upload." />
   <meta name="twitter:image" content="https://kurocat.cc/assets/og-cover.png" />
 
-  <!-- Branded Hosted Favicons -->
   <link rel="icon" href="/favicon.ico" sizes="any" />
   <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg" />
   <link rel="icon" type="image/png" sizes="48x48" href="/assets/favicon-48.png" />
   <link rel="icon" type="image/png" sizes="192x192" href="/assets/favicon-192.png" />
   <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png" />
 
-  <!-- Approved Fonts: Manrope + Geist Mono -->
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@500;600&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="../styles.css?v=20261125c" />
-
-  <!-- GEO & SEO Entity Knowledge Graph (English) -->
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+  <link rel="stylesheet" href="../site.css?v=0ffda88bb2" />
+  <script>
+    document.documentElement.classList.add('js');
+    window.KUROCAT_ASSET_BASE = "../";
+    window.KUROCAT_BUILD = "0ffda88bb2";
+  </script>
+  <script type="importmap">
+  { "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.min.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  } }
+  </script>
   <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@graph": [
-      {
-        "@type": "Person",
-        "@id": "https://kurocat.cc/#creator",
-        "name": "chanke17",
-        "url": "https://github.com/chanke17",
-        "sameAs": [
-          "https://github.com/chanke17",
-          "https://github.com/chanke17/KuroCat"
-        ]
-      },
-      {
-        "@type": "WebSite",
-        "@id": "https://kurocat.cc/#website",
-        "name": "KuroCat",
-        "alternateName": ["KuroCat Official", "KuroCat Desktop Pet", "Kuro Cat"],
-        "url": "https://kurocat.cc/",
-        "inLanguage": ["en", "zh-CN"],
-        "publisher": { "@id": "https://kurocat.cc/#creator" }
-      },
-      {
-        "@type": "SoftwareApplication",
-        "@id": "https://kurocat.cc/#software",
-        "name": "KuroCat",
-        "alternateName": ["Kuro Cat", "KuroCat Desktop Cat Pet", "KuroCat Bongo Cat Alternative"],
-        "applicationCategory": "UtilitiesApplication",
-        "operatingSystem": "macOS 11+, Windows 7, Windows 8, Windows 10, Windows 11, Linux, UnionTech UOS 20, Kylin V10",
-        "softwareVersion": "1.4.3",
-        "dateModified": "2026-11-25",
-        "fileSize": "802KB",
-        "license": "https://opensource.org/licenses/MIT",
-        "isAccessibleForFree": true,
-        "offers": {
-          "@type": "Offer",
-          "price": "0",
-          "priceCurrency": "USD"
-        },
-        "url": "https://kurocat.cc/en/",
-        "downloadUrl": "https://github.com/chanke17/KuroCat/releases/latest",
-        "codeRepository": "https://github.com/chanke17/KuroCat",
-        "sameAs": [
-          "https://github.com/chanke17/KuroCat",
-          "https://kurocat.cc/",
-          "https://workshop.kurocat.cc/"
-        ],
-        "image": "https://kurocat.cc/assets/og-cover.png",
-        "screenshot": [
-          "https://kurocat.cc/assets/preview_siamese.jpg",
-          "https://kurocat.cc/assets/preview_black.jpg",
-          "https://kurocat.cc/assets/preview_shorthair.jpg",
-          "https://kurocat.cc/assets/preview_orangeWhite.jpg",
-          "https://kurocat.cc/assets/preview_tabby_windows.png"
-        ],
-        "featureList": [
-          "100% native UI and rendering (Swift CoreGraphics, Win32 GDI+ C++, GTK3 Cairo) with zero Electron overhead — 802 KB single portable exe on Windows",
-          "Hardware-level full-state keyboard & mouse capture (NKRO typing, WASD gaming holds, 3-key hind paw kick, 4-key tail press)",
-          "2.5D spherical head tracking, hunting boba eyes, scruff-of-neck 2D inertia drag, and low-FPS cat-ball sleep mode",
-          "Automatic 2.5D graphics tablet stylus detection for digital artists and illustrators",
-          "Built-in OBS transparent window capture and #00FF00 chroma green-screen overlay mode",
-          "Open .kurocat skin & .kurokb keyboard theme formats with free browser Skin Workshop & Community Plaza",
-          "MIT open source, 100% free, zero keystroke logging or telemetry"
-        ],
-        "author": { "@id": "https://kurocat.cc/#creator" },
-        "publisher": { "@id": "https://kurocat.cc/#creator" },
-        "description": "KuroCat is a free, MIT open-source, 100% native cross-platform desktop cat pet and Bongo Cat alternative for macOS, Windows (802 KB single executable), Linux, and UOS. Features 2.5D spherical head tracking, graphics tablet stylus mode, OBS transparent and green-screen overlays, browser Skin Workshop, and strictly local RAM input processing with zero keystroke upload."
-      },
-      {
-        "@type": "FAQPage",
-        "mainEntity": [
-          {
-            "@type": "Question",
-            "name": "Does KuroCat record or upload my keystrokes?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "No. Every keyboard and mouse event stays strictly in local RAM to drive cat animations and local KPM counters. Nothing is written to disk or uploaded, and the entire codebase is MIT open source for public inspection."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "How is KuroCat different from classic Bongo Cat?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "KuroCat is natively built in Swift, Win32 C++, and GTK3 Cairo (802 KB single exe on Windows, 944 KB Universal binary on macOS) across macOS, Windows, Linux, and UOS, adding 2.5D spherical head tracking, hunting eyes, automatic graphics tablet mode, OBS transparent and green-screen modes, 2D scruff drag physics, and an online Skin Workshop."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "How do I add KuroCat to OBS Studio or streaming apps?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "Right-click the cat or tray icon, open Settings, and enable OBS Transparent Window Capture or OBS Green Screen (#00FF00), then add a Window Capture source in OBS Studio. Fullscreen auto-hide pauses automatically during OBS capture."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "How do I open Settings after enabling full mouse click-through?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "Click the KuroCat icon in the macOS menu bar or Windows / Linux system tray anytime. You can also hold Option on macOS or press Ctrl + Alt + Shift + P on Windows to toggle menu access."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "macOS says unverified developer or keyboard does not respond?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "Right-click KuroCat.app and pick Open on first run. Then check KuroCat under System Settings -> Privacy & Security -> Input Monitoring and restart it from the menu bar."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "Is the Windows SmartScreen prompt normal?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "Yes. Open-source indie apps without a paid commercial signing certificate can trigger SmartScreen on fresh releases. Verify the SHA-256 checksum against GitHub Releases, then click More info -> Run anyway."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "Does KuroCat work on Linux, UnionTech UOS, and Kylin?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "Yes. Linux packages target glibc 2.28 (Debian 10) for both x86_64 and ARM64, supporting Ubuntu, Debian, Deepin, UnionTech UOS 20, Kylin V10, Arch, and Fedora with both .deb and password-free tar.gz installers."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "How do I turn my own cat into a custom desktop pet skin?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "Open the KuroCat Skin Workshop at workshop.kurocat.cc in your browser to analyze a cat photo, draw bezier coat regions, add 2.5D sticker accessories, export a .kurocat file, and drag it right onto your desktop cat."
-            }
-          }
-        ]
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Person",
+      "@id": "https://kurocat.cc/#creator",
+      "name": "chanke17",
+      "url": "https://github.com/chanke17",
+      "sameAs": [
+        "https://github.com/chanke17",
+        "https://github.com/chanke17/KuroCat"
+      ]
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://kurocat.cc/#website",
+      "name": "KuroCat",
+      "alternateName": [
+        "KuroCat 官网",
+        "KuroCat 桌宠",
+        "KuroCat Desktop Pet",
+        "Kuro Cat"
+      ],
+      "url": "https://kurocat.cc/",
+      "inLanguage": [
+        "zh-CN",
+        "en"
+      ],
+      "publisher": {
+        "@id": "https://kurocat.cc/#creator"
       }
-    ]
-  }
+    },
+    {
+      "@type": "SoftwareApplication",
+      "@id": "https://kurocat.cc/#software",
+      "name": "KuroCat",
+      "alternateName": [
+        "Kuro Cat",
+        "KuroCat 桌面萌猫",
+        "KuroCat Desktop Cat Pet"
+      ],
+      "applicationCategory": "UtilitiesApplication",
+      "operatingSystem": "macOS 11+, Windows 7 SP1, Windows 8, Windows 10, Windows 11, Linux, UnionTech UOS 20, Kylin V10",
+      "softwareVersion": "1.4.5",
+      "dateModified": "2026-11-26",
+      "fileSize": "850KB",
+      "license": "https://opensource.org/licenses/MIT",
+      "isAccessibleForFree": true,
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "url": "https://kurocat.cc/en/",
+      "downloadUrl": "https://kurocat-download.app.workbuddy.host/?sharecode=JVAABIVZ7L",
+      "installUrl": "https://github.com/chanke17/KuroCat/releases/latest",
+      "codeRepository": "https://github.com/chanke17/KuroCat",
+      "sameAs": [
+        "https://github.com/chanke17/KuroCat",
+        "https://workshop.kurocat.cc/"
+      ],
+      "image": "https://kurocat.cc/assets/og-cover.png",
+      "screenshot": [
+        "https://kurocat.cc/assets/preview_siamese.jpg",
+        "https://kurocat.cc/assets/preview_black.jpg",
+        "https://kurocat.cc/assets/preview_orangeWhite.jpg"
+      ],
+      "featureList": [
+        "Whatever key you hit, it hits too.",
+        "Flick the mouse and it starts hunting.",
+        "Pet its head, or lift it by the scruff.",
+        "Ignore it and it curls up to sleep.",
+        "When you go live, it is your co-host.",
+        "Under 1 MB, native on four systems.",
+        "New coat, same cat."
+      ],
+      "description": "KuroCat is a free, open-source native desktop cat: it taps keys as you type and widens its eyes when you shake the mouse. Built in Swift, Win32 C++ and GTK3 (850 KB single exe on Windows) for macOS, Windows, Linux and UOS, with OBS transparent and green-screen capture, an online Skin Workshop, and zero keystroke logging or upload.",
+      "inLanguage": "en",
+      "author": {
+        "@id": "https://kurocat.cc/#creator"
+      },
+      "publisher": {
+        "@id": "https://kurocat.cc/#creator"
+      }
+    },
+    {
+      "@type": "FAQPage",
+      "inLanguage": "en",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "Does KuroCat record or upload what I type?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "No. Keyboard and mouse signals stay in local memory and only drive the animation and counters. Nothing is logged and no keystrokes are uploaded. The only network request is the update check against the official download site, and the full source is MIT licensed for anyone to audit."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How is KuroCat different from classic Bongo Cat?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "KuroCat is written natively in Swift, Win32 C++ and GTK3 Cairo, about 850 KB as a single Windows exe, and runs on macOS, Windows, Linux and UOS. Beyond NKRO key tapping it adds 2.5D head tracking, hunting eyes, a graphics-tablet pen mode, OBS transparent and green-screen modes, scruff dragging with inertia, and an online Skin Workshop."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How do I add KuroCat to OBS, Douyin Live Companion or Bilibili Live?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Right-click the cat or the tray icon, open Settings and turn on OBS Transparent Window Capture or OBS Green Screen (#00FF00), then add a window capture source in your streaming app. Fullscreen auto-hide pauses automatically in OBS mode, so the cat never disappears."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How do I open Settings after turning on full click-through?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Transparent areas already let clicks through. With full click-through on, click the KuroCat icon in the macOS menu bar or the Windows / Linux tray. You can also hold Option on macOS or press Ctrl + Alt + Shift + P on Windows."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "macOS says it can’t open the app, or typing does nothing?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "On first launch, right-click KuroCat.app, choose Open and confirm. Then enable KuroCat in System Settings → Privacy & Security → Input Monitoring and restart it from the menu bar."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Is the Windows SmartScreen warning safe to ignore?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "New releases of indie open-source apps often trigger SmartScreen as an uncommon download. Check that the SHA-256 on this page matches the GitHub release, then choose More info → Run anyway, or build it yourself from source."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Does it run on UnionTech UOS and Kylin?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes. Linux builds target Debian 10 (glibc 2.28), which covers UOS 20 and Kylin V10, on both x86_64 and ARM64. If you can’t enter an admin password, use the no-sudo tar.gz installer."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How do I turn my own cat into a skin?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Open the KuroCat Skin Workshop, upload a photo to sample its coat colors, draw pattern regions with the pen tool and add accessory stickers. Drag the exported .kurocat file onto your desktop cat, or submit it to the community plaza."
+          }
+        }
+      ]
+    }
+  ]
+}
   </script>
 </head>
 <body>
-  <a class="skip-link button-sm" href="#main-content" data-i18n="skip">Skip to main content</a>
+  <a class="skip-link" href="#main">Skip to main content</a>
 
-  <!-- Phosphor-style crisp geometric SVG sprite -->
-  <svg class="svg-sprite" aria-hidden="true">
-    <symbol id="ph-download" viewBox="0 0 24 24"><path d="M12 3v12m0 0 4.5-4.5M12 15 7.5 10.5M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></symbol>
-    <symbol id="ph-arrow-up-right" viewBox="0 0 24 24"><path d="M7 17 17 7M9 7h8v8"/></symbol>
-    <symbol id="ph-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14m0 0-5-5m5 5-5 5"/></symbol>
-    <symbol id="ph-check" viewBox="0 0 24 24"><path d="m5 12.5 4.2 4.2L19 7"/></symbol>
-    <symbol id="ph-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></symbol>
-    <symbol id="ph-caret-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
-    <symbol id="ph-palette" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18c1.3 0 2.2-1 2.2-2.1 0-.6-.3-1.1-.6-1.5-.3-.4-.5-.8-.5-1.4 0-1.1.9-2 2-2H17a4 4 0 0 0 4-4c0-4.4-4-7-9-7Z"/><circle cx="7.5" cy="11.5" r="1"/><circle cx="10.5" cy="7.5" r="1"/><circle cx="15.5" cy="8.5" r="1"/></symbol>
-    <symbol id="ph-sparkle" viewBox="0 0 24 24"><path d="m12 3 1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3Z"/><path d="M19 16v4m-2-2h4"/></symbol>
-    <symbol id="ph-keyboard" viewBox="0 0 24 24"><rect x="2.5" y="5.5" width="19" height="13" rx="2.5"/><path d="M6.5 10h1m3 0h1m3 0h1m3 0h1M6.5 14h11"/></symbol>
-    <symbol id="ph-monitor" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8m-4-4v4"/></symbol>
-    <symbol id="ph-shield" viewBox="0 0 24 24"><path d="M12 3 4.5 6v5.5c0 4.7 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.8 7.5-9.5V6L12 3Z"/><path d="m9 12 2 2 4-4"/></symbol>
-    <symbol id="ph-book" viewBox="0 0 24 24"><path d="M4.5 5.5A2.5 2.5 0 0 1 7 3h12.5v16H7a2.5 2.5 0 0 0-2.5 2.5V5.5Z"/><path d="M4.5 19.5A2.5 2.5 0 0 1 7 17h12.5"/></symbol>
-    <symbol id="ph-compass" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m15.8 8.2-2.2 5.4-5.4 2.2 2.2-5.4 5.4-2.2Z"/></symbol>
-    <symbol id="ph-code" viewBox="0 0 24 24"><path d="m8 8-4 4 4 4m8-8 4 4-4 4m-2-10-4 12"/></symbol>
-    <symbol id="ph-eye" viewBox="0 0 24 24"><path d="M2.5 12S6 6.5 12 6.5 21.5 12 21.5 12 18 17.5 12 17.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="2.6"/></symbol>
-    <symbol id="ph-apple" viewBox="0 0 24 24"><path d="M16.4 12.7c0-2.4 2-3.6 2.1-3.7-1.1-1.7-2.9-1.9-3.5-1.9-1.5-.2-2.9.9-3.6.9-.7 0-1.8-.9-3-.9-1.5 0-3 .9-3.8 2.2-1.6 2.8-.4 7 1.2 9.3.8 1.1 1.7 2.3 2.9 2.2 1.2 0 1.6-.7 3-.7 1.4 0 1.8.7 3 .7 1.2 0 2-1.1 2.8-2.2.9-1.3 1.2-2.5 1.3-2.6-.1 0-2.4-.9-2.4-3.3ZM14.1 5.2c.6-.8 1.1-1.9 1-3-.9 0-2.1.6-2.8 1.4-.6.7-1.2 1.8-1 2.9 1 .1 2.1-.5 2.8-1.3Z"/></symbol>
-    <symbol id="ph-windows" viewBox="0 0 24 24"><path d="M3 5.5 10.5 4.4v7.1H3V5.5Zm8.8-1.3L21 3v9.1h-9.2V4.2ZM3 12.9h7.5v7.1L3 18.9v-6Zm8.8 0H21V21l-9.2-1.3v-6.8Z"/></symbol>
-    <symbol id="ph-linux" viewBox="0 0 24 24"><path d="M12.3 2.5c-2.4 0-3.4 2.2-3.3 4.4-.5 1.3-2.3 3.3-2.7 5.8-.4 2.6.3 5.4 2.3 7.2 1.2 1.1 2.6 1.6 4 1.6 1.7 0 3.4-.7 4.5-2 1.9-2 2.4-5 1.6-7.6-.6-2.1-1.9-3.9-2.7-5.4.3-2.6-.5-4-3.7-4Zm-.3 6.1c.6 0 1.1.6 1.1 1.4s-.5 1.4-1.1 1.4-1.1-.6-1.1-1.4.5-1.4 1.1-1.4Zm-3 1.1c.5 0 .9.5.9 1.1s-.4 1.1-.9 1.1-.9-.5-.9-1.1.4-1.1.9-1.1Zm6.1 0c.5 0 .9.5.9 1.1s-.4 1.1-.9 1.1-.9-.5-.9-1.1.4-1.1.9-1.1Zm-3.1 3c1.2 0 2.4.2 3.3.7-.3 1.4-1.6 2.6-3.4 2.6s-3.1-1.2-3.4-2.6c.9-.5 2.2-.7 3.5-.7Z"/></symbol>
-    <symbol id="ph-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <svg class="sprite" aria-hidden="true" focusable="false">
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v11m0 0 4.5-4.5M12 15l-4.5-4.5M5 19h14"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9.5 6 6 6-6 6"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9.5 6 6 6-6"/></symbol>
+    <symbol id="i-out" viewBox="0 0 24 24"><path d="M8 16 16 8M9.5 8H16v6.5"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="11" height="11" rx="2.5"/><path d="M15.5 8.5V6.5a2 2 0 0 0-2-2h-7a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h2"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5.5 12.5 4 4 9-9"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11m0-11-11 11"/></symbol>
+    <symbol id="i-key" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="3"/><path d="M7 10h.01M10.5 10h.01M14 10h.01M17.5 10h.01M8 14h8"/></symbol>
+    <symbol id="i-float" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="3"/><rect x="12" y="12" width="6" height="5" rx="1.2"/></symbol>
+    <symbol id="i-star" viewBox="0 0 24 24"><path d="m12 4.2 2.35 4.9 5.35.68-3.93 3.7 1 5.32L12 16.2l-4.77 2.6 1-5.32-3.93-3.7 5.35-.68L12 4.2Z"/></symbol>
+    <symbol id="i-apple" viewBox="0 0 24 24"><path class="fill" d="M16.4 12.7c0-2.4 2-3.6 2.1-3.7-1.1-1.7-2.9-1.9-3.5-1.9-1.5-.2-2.9.9-3.6.9-.7 0-1.8-.9-3-.9-1.5 0-3 .9-3.8 2.2-1.6 2.8-.4 7 1.2 9.3.8 1.1 1.7 2.3 2.9 2.2 1.2 0 1.6-.7 3-.7 1.4 0 1.8.7 3 .7 1.2 0 2-1.1 2.8-2.2.9-1.3 1.2-2.5 1.3-2.6-.1 0-2.4-.9-2.4-3.3ZM14.1 5.2c.6-.8 1.1-1.9 1-3-.9 0-2.1.6-2.8 1.4-.6.7-1.2 1.8-1 2.9 1 .1 2.1-.5 2.8-1.3Z"/></symbol>
+    <symbol id="i-windows" viewBox="0 0 24 24"><path class="fill" d="M3 5.5 10.5 4.4v7.1H3V5.5Zm8.8-1.3L21 3v9.1h-9.2V4.2ZM3 12.9h7.5v7.1L3 18.9v-6Zm8.8 0H21V21l-9.2-1.3v-6.8Z"/></symbol>
+    <symbol id="i-linux" viewBox="0 0 24 24"><path class="fill" d="M12.3 2.5c-2.4 0-3.4 2.2-3.3 4.4-.5 1.3-2.3 3.3-2.7 5.8-.4 2.6.3 5.4 2.3 7.2 1.2 1.1 2.6 1.6 4 1.6 1.7 0 3.4-.7 4.5-2 1.9-2 2.4-5 1.6-7.6-.6-2.1-1.9-3.9-2.7-5.4.3-2.6-.5-4-3.7-4Zm-.3 6.1c.6 0 1.1.6 1.1 1.4s-.5 1.4-1.1 1.4-1.1-.6-1.1-1.4.5-1.4 1.1-1.4Zm-3 1.1c.5 0 .9.5.9 1.1s-.4 1.1-.9 1.1-.9-.5-.9-1.1.4-1.1.9-1.1Zm6.1 0c.5 0 .9.5.9 1.1s-.4 1.1-.9 1.1-.9-.5-.9-1.1.4-1.1.9-1.1Zm-3.1 3c1.2 0 2.4.2 3.3.7-.3 1.4-1.6 2.6-3.4 2.6s-3.1-1.2-3.4-2.6c.9-.5 2.2-.7 3.5-.7Z"/></symbol>
+    <symbol id="i-github" viewBox="0 0 24 24"><path class="fill" d="M12 2.3a9.9 9.9 0 0 0-3.13 19.3c.5.09.68-.21.68-.48v-1.7c-2.76.6-3.34-1.33-3.34-1.33-.45-1.15-1.1-1.46-1.1-1.46-.9-.62.07-.6.07-.6 1 .07 1.52 1.03 1.52 1.03.89 1.52 2.33 1.08 2.9.83.09-.65.35-1.09.63-1.34-2.2-.25-4.52-1.1-4.52-4.9 0-1.08.39-1.97 1.02-2.66-.1-.25-.44-1.26.1-2.63 0 0 .84-.27 2.73 1.02a9.4 9.4 0 0 1 4.97 0c1.9-1.29 2.73-1.02 2.73-1.02.54 1.37.2 2.38.1 2.63.64.7 1.02 1.58 1.02 2.66 0 3.81-2.32 4.65-4.53 4.9.36.3.67.9.67 1.83v2.72c0 .27.18.58.69.48A9.9 9.9 0 0 0 12 2.3Z"/></symbol>
+    <symbol id="i-chip" viewBox="0 0 24 24"><path class="fill" fill-rule="evenodd" d="M8 2.5h2v2h4v-2h2v2h1a2.5 2.5 0 0 1 2.5 2.5v1h2v2h-2v4h2v2h-2v1a2.5 2.5 0 0 1-2.5 2.5h-1v2h-2v-2h-4v2H8v-2H7A2.5 2.5 0 0 1 4.5 17v-1h-2v-2h2v-4h-2V8h2V7A2.5 2.5 0 0 1 7 4.5h1v-2Zm1.5 7v5h5v-5h-5Z"/></symbol>
+    <symbol id="i-cat" viewBox="0 0 24 24"><path class="fill" d="M4.2 3.4c.4-.2.9-.1 1.2.2l3 2.9a8.9 8.9 0 0 1 7.2 0l3-2.9c.3-.3.8-.4 1.2-.2.4.2.7.6.7 1v8.1c0 4.6-3.9 8.2-8.5 8.2S3.5 17.1 3.5 12.5V4.4c0-.4.3-.8.7-1Zm4.6 9.1a1.3 1.4 0 1 0 0 2.8 1.3 1.4 0 0 0 0-2.8Zm6.4 0a1.3 1.4 0 1 0 0 2.8 1.3 1.4 0 0 0 0-2.8Zm-3.2 3.7-1 .9h2l-1-.9Z"/></symbol>
   </svg>
 
-  <!-- Floating Pill Navigation (B7) -->
-  <header class="nav-shell">
-    <nav class="nav-pill" aria-label="Primary navigation">
-      <a class="brand-link" href="#top" aria-label="KuroCat Official Homepage">
-        <span class="brand-mark" aria-hidden="true">
-          <span class="brand-eye"></span>
-          <span class="brand-eye"></span>
-        </span>
-        <span class="title-3">KuroCat</span>
+  <!-- Navigation -->
+  <header class="nav" id="nav">
+    <div class="nav-in">
+      <a class="brand" href="#top" aria-label="KuroCat home">
+        <svg class="brand-mark" aria-hidden="true"><use href="#i-cat" /></svg>
+        <span>KuroCat</span>
       </a>
-
-      <div class="nav-links" id="navLinks">
-        <a class="nav-item title-4" href="#hub" data-nav="hub" data-i18n="nav_hub">Hub</a>
-        <a class="nav-item title-4" href="#features" data-nav="features" data-i18n="nav_features">Features</a>
-        <a class="nav-item title-4" href="#skins" data-nav="skins" data-i18n="nav_skins">Skins</a>
-        <a class="nav-item title-4" href="#compare" data-nav="compare" data-i18n="nav_compare">Compare</a>
-        <a class="nav-item title-4" href="#download" data-nav="download" data-i18n="nav_download">Download</a>
-        <a class="nav-item title-4" href="#faq" data-nav="faq" data-i18n="nav_faq">FAQ</a>
-        <a class="nav-item title-4" href="https://workshop.kurocat.cc/" target="_blank" rel="noopener">
-          <span data-i18n="nav_workshop">Workshop</span>
-          <svg class="icon icon-sm" aria-hidden="true"><use href="#ph-arrow-up-right" /></svg>
+      <nav class="nav-links" aria-label="Main navigation">
+        <a href="#features" data-nav="features">Features</a>
+        <a href="#native" data-nav="native">Native</a>
+        <a href="#skins" data-nav="skins">Skins</a>
+        <a href="#download" data-nav="download">Download</a>
+        <a href="#faq" data-nav="faq">FAQ</a>
+        <a href="https://workshop.kurocat.cc/" target="_blank" rel="noopener">Skin Workshop<svg class="i i-xs" aria-hidden="true"><use href="#i-out" /></svg></a>
+      </nav>
+      <div class="nav-end">
+        <a class="nav-lang" href="/" hreflang="zh-CN" lang="zh-CN">中文</a>
+        <a class="nav-gh" href="https://github.com/chanke17/KuroCat" target="_blank" rel="noopener" aria-label="KuroCat on GitHub">
+          <svg class="i" aria-hidden="true"><use href="#i-github" /></svg>
+          <span class="nav-gh-count" data-gh-stars>Star</span>
         </a>
-      </div>
-
-      <div class="nav-actions">
-        <a class="lang-btn caption-3" id="langToggle" href="/" hreflang="zh-CN" lang="zh-CN" aria-label="切换到中文">中文</a>
-        <a class="btn btn-primary button-sm" href="https://kurocat-download.app.workbuddy.host/?sharecode=JVAABIVZ7L" target="_blank" rel="noopener" data-i18n="nav_cta">Fast Mirror</a>
-        <button class="menu-toggle" id="menuToggle" type="button" aria-expanded="false" aria-controls="mobileDrawer" aria-label="Open menu">
-          <span class="menu-bars" aria-hidden="true">
-            <span class="menu-bar menu-bar-top"></span>
-            <span class="menu-bar menu-bar-mid"></span>
-            <span class="menu-bar menu-bar-bot"></span>
-          </span>
+        <a class="btn btn-blue btn-s" href="#download">Download</a>
+        <button class="nav-menu" id="navMenu" type="button" aria-expanded="false" aria-controls="navDrawer" aria-label="Open menu">
+          <span></span><span></span>
         </button>
       </div>
-    </nav>
+    </div>
+    <div class="nav-drawer" id="navDrawer">
+      <a href="#features">Features</a>
+      <a href="#native">Native</a>
+      <a href="#skins">Skins</a>
+      <a href="#download">Download</a>
+      <a href="#faq">FAQ</a>
+      <a href="https://workshop.kurocat.cc/" target="_blank" rel="noopener">Skin Workshop<svg class="i i-xs" aria-hidden="true"><use href="#i-out" /></svg></a>
+      <a href="https://github.com/chanke17/KuroCat" target="_blank" rel="noopener">GitHub<svg class="i i-xs" aria-hidden="true"><use href="#i-out" /></svg></a>
+      <a href="/" hreflang="zh-CN" lang="zh-CN">简体中文</a>
+    </div>
   </header>
 
-  <!-- Full-Height Mobile Drawer (B7) -->
-  <aside class="mobile-drawer" id="mobileDrawer" aria-hidden="true">
-    <div class="mobile-drawer-list">
-      <a class="mobile-drawer-link title-2" href="#hub"><span data-i18n="nav_hub">Hub</span><svg class="icon" aria-hidden="true"><use href="#ph-arrow-right" /></svg></a>
-      <a class="mobile-drawer-link title-2" href="#features"><span data-i18n="nav_features">Features</span><svg class="icon" aria-hidden="true"><use href="#ph-arrow-right" /></svg></a>
-      <a class="mobile-drawer-link title-2" href="#skins"><span data-i18n="nav_skins">Skins</span><svg class="icon" aria-hidden="true"><use href="#ph-arrow-right" /></svg></a>
-      <a class="mobile-drawer-link title-2" href="#compare"><span data-i18n="nav_compare">Compare</span><svg class="icon" aria-hidden="true"><use href="#ph-arrow-right" /></svg></a>
-      <a class="mobile-drawer-link title-2" href="#download"><span data-i18n="nav_download">Download</span><svg class="icon" aria-hidden="true"><use href="#ph-arrow-right" /></svg></a>
-      <a class="mobile-drawer-link title-2" href="https://kurocat-download.app.workbuddy.host/?sharecode=JVAABIVZ7L" target="_blank" rel="noopener"><span data-i18n="drawer_cn">Fast Download Mirror</span><svg class="icon" aria-hidden="true"><use href="#ph-arrow-up-right" /></svg></a>
-      <a class="mobile-drawer-link title-2" href="https://workshop.kurocat.cc/" target="_blank" rel="noopener"><span data-i18n="nav_workshop">Workshop</span><svg class="icon" aria-hidden="true"><use href="#ph-arrow-up-right" /></svg></a>
-    </div>
-  </aside>
-
-  <main id="main-content">
-    <!-- 1. HERO (A2 & B5: single primary CTA, max-width 680px, text gradient ONLY on h1) -->
-    <section class="hero" id="top">
-      <div class="wrap">
-        <div class="hero-grid">
-          <div class="hero-copy">
-            <div class="eyebrow caption-3">
-              <span class="eyebrow-dot" aria-hidden="true"></span>
-              <span class="mono-tag">v1.4.3</span>
-              <span data-i18n="hero_badge">· MIT Open Source · Zero Keystroke Upload</span>
-            </div>
-
-            <h1 class="hero-title heading-1" data-i18n-html="hero_h1"><span class="hero-brand-kicker">KuroCat</span>A native desktop cat<br />right on your keyboard</h1>
-
-            <p class="hero-sub body-3" data-i18n="hero_sub">KuroCat is a lightweight open source desktop companion built natively for macOS, Windows, Linux, and UOS. Syncs with typing, gaming, graphics tablets, and OBS with zero keystrokes logged or uploaded.</p>
-
-            <div class="hero-cta-row">
-              <a class="btn btn-primary btn-hero button-md" id="heroPrimaryCta" href="#download">
-                <svg class="icon" aria-hidden="true"><use href="#ph-download" /></svg>
-                <span id="heroPrimaryLabel" data-i18n="hero_cta">Download KuroCat Free</span>
-              </a>
-              <a class="hero-quiet-link title-4" href="https://workshop.kurocat.cc/#plaza" target="_blank" rel="noopener">
-                <span data-i18n="hero_secondary">Explore Skin Workshop</span>
-                <svg class="icon icon-sm" aria-hidden="true"><use href="#ph-arrow-up-right" /></svg>
-              </a>
-            </div>
-
-            <ul class="hero-proof-list body-6">
-              <li><svg class="icon icon-sm" aria-hidden="true"><use href="#ph-check" /></svg><span data-i18n="proof_1">Native Swift / Win32 / GTK3</span></li>
-              <li><svg class="icon icon-sm" aria-hidden="true"><use href="#ph-check" /></svg><span data-i18n="proof_2">Fast mirror & GitHub Releases</span></li>
-              <li><svg class="icon icon-sm" aria-hidden="true"><use href="#ph-check" /></svg><span data-i18n="proof_3">Auditable MIT source, local only</span></li>
-            </ul>
-          </div>
-
-          <div class="pet-stage-card" id="petPlayground">
-            <div class="pet-stage-head">
-              <div class="pet-live-pill caption-4">
-                <span class="live-dot" aria-hidden="true"></span>
-                <span id="petStatusLabel" data-i18n="pet_live_hint">Live Web Pet · Type or shake cursor</span>
-              </div>
-              <button class="pet-float-toggle caption-3" id="petFloatToggle" type="button" aria-pressed="false">
-                <svg class="icon icon-sm" aria-hidden="true"><use href="#ph-compass" /></svg>
-                <span id="petFloatLabel" data-i18n="pet_float_on">Float on Page</span>
-              </button>
-            </div>
-
-            <div class="pet-skin-bar" id="petSkinBar" role="tablist" aria-label="Switch live preview skin">
-              <button class="pet-skin-chip caption-3 active" type="button" role="tab" aria-selected="true" data-skin-id="siamese">
-                <span class="skin-swatch" style="background-color:#E7DAC4;"></span>
-                <span data-i18n="ps_siamese">Siamese</span>
-              </button>
-              <button class="pet-skin-chip caption-3" type="button" role="tab" aria-selected="false" data-skin-id="xiao-douni">
-                <span class="skin-swatch" style="background-color:#F6EFE6;"></span>
-                <span data-i18n="ps_douni">Xiao Douni</span>
-              </button>
-              <button class="pet-skin-chip caption-3" type="button" role="tab" aria-selected="false" data-skin-id="dazed-cat">
-                <span class="skin-swatch" style="background-color:#555F9B;"></span>
-                <span data-i18n="ps_dazed">Palico</span>
-              </button>
-              <button class="pet-skin-chip caption-3" type="button" role="tab" aria-selected="false" data-skin-id="orangeWhite">
-                <span class="skin-swatch" style="background-color:#DE9A58;"></span>
-                <span data-i18n="ps_orange">Orange White</span>
-              </button>
-              <button class="pet-skin-chip caption-3" type="button" role="tab" aria-selected="false" data-skin-id="mackerel-tabby">
-                <span class="skin-swatch" style="background-color:#B8A081;"></span>
-                <span data-i18n="ps_tabby">Brown Tabby</span>
-              </button>
-              <button class="pet-skin-chip caption-3" type="button" role="tab" aria-selected="false" data-skin-id="black">
-                <span class="skin-swatch" style="background-color:#1E2B25;"></span>
-                <span data-i18n="ps_black">Black Cat</span>
-              </button>
-            </div>
-
-            <div class="pet-canvas-box" id="petCanvasBox">
-              <div class="pet-canvas-mount" id="petHomeMount">
-                <canvas id="livePetCanvas" width="720" height="640" aria-label="KuroCat interactive web desktop pet canvas supporting live typing, 2.5D cursor tracking, petting, and scruff drag"></canvas>
-              </div>
-              <div class="pet-docked-placeholder" id="petDockedNotice">
-                <p class="title-4" data-i18n="pet_undocked_t">Your cat is floating in the corner</p>
-                <p class="caption-2" data-i18n="pet_undocked_d">Scroll, type on your keyboard, or drag it anywhere on screen</p>
-                <button class="btn btn-secondary button-sm" type="button" id="petDockBackBtn" data-i18n="pet_dock_back">Dock Back</button>
-              </div>
-            </div>
-
-            <div class="pet-action-bar" role="group" aria-label="Quick pet animations">
-              <button class="pet-action-btn caption-3" type="button" data-pet-pose="typing" data-i18n="act_typing">Auto Type</button>
-              <button class="pet-action-btn caption-3" type="button" data-pet-pose="petHead" data-i18n="act_pet">Pet Head</button>
-              <button class="pet-action-btn caption-3" type="button" data-pet-pose="drag" data-i18n="act_drag">Scruff Lift</button>
-              <button class="pet-action-btn caption-3" type="button" data-pet-pose="sleep" data-i18n="act_sleep">Cat Ball Sleep</button>
-            </div>
-
-            <div class="pet-hint-line caption-5">
-              <span data-i18n="pet_controls_tip">Press any key to type · Shake mouse to hunt · Drag cat to lift</span>
-              <span class="mono-tag" id="petKeyCounter">KEYS 0</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="stat-strip reveal">
-          <div class="stat-card">
-            <strong class="heading-5">802 KB</strong>
-            <span class="caption-2" data-i18n="stat_1">Windows single executable</span>
-          </div>
-          <div class="stat-card">
-            <strong class="heading-5">4 OS Families</strong>
-            <span class="caption-2" data-i18n="stat_2">macOS / Win / Linux / UOS</span>
-          </div>
-          <div class="stat-card">
-            <strong class="heading-5">10+ Skins</strong>
-            <span class="caption-2" data-i18n="stat_3">Built in & community skins</span>
-          </div>
-          <div class="stat-card">
-            <strong class="heading-5">0 Bytes</strong>
-            <span class="caption-2" data-i18n="stat_4">Keystrokes uploaded</span>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- 2. ECOSYSTEM NAVIGATION HUB (#hub) -->
-    <section class="section section-oatmeal section-divider" id="hub">
-      <div class="wrap">
-        <div class="section-head reveal">
-          <div class="eyebrow caption-3"><span class="eyebrow-dot" aria-hidden="true"></span><span data-i18n="hub_eyebrow">Ecosystem Hub</span></div>
-          <h2 class="heading-2" data-i18n="hub_h2">Every KuroCat destination in one place</h2>
-          <p class="body-3" data-i18n="hub_sub">Jump straight to fast direct downloads, the online 2.5D skin editor, community skin & keyboard plaza, or MIT source docs.</p>
-        </div>
-
-        <div class="hub-grid">
-          <!-- Portal 1: Domestic Fast Download Mirror (WorkBuddy) -->
-          <article class="hub-card hub-card-featured reveal">
-            <div>
-              <div class="hub-card-top">
-                <span class="hub-icon-box" aria-hidden="true"><svg class="icon icon-lg"><use href="#ph-download" /></svg></span>
-                <span class="hub-badge hub-badge-accent caption-3" data-i18n="hub_1_badge">Recommended Mirror</span>
-              </div>
-              <h3 class="heading-5" data-i18n="hub_1_title">Fast Direct Download Mirror</h3>
-              <p class="body-6" data-i18n="hub_1_desc">Direct high speed mirror for macOS, Windows, Linux, and UOS builds with verified SHA 256 checksums and community Q&A.</p>
-            </div>
-            <div class="hub-sublinks">
-              <a class="hub-chip caption-4" href="https://kurocat-download.app.workbuddy.host/downloads/KuroCat-macOS-universal.zip?sharecode=JVAABIVZ7L" target="_blank" rel="noopener">macOS Universal</a>
-              <a class="hub-chip caption-4" href="https://kurocat-download.app.workbuddy.host/downloads/KuroCat-Windows-x64.exe?sharecode=JVAABIVZ7L" target="_blank" rel="noopener">Windows Single Exe</a>
-              <a class="hub-chip caption-4" href="https://kurocat-download.app.workbuddy.host/?sharecode=JVAABIVZ7L#qa-from-comments" target="_blank" rel="noopener" data-i18n="hub_1_qa">Top 10 Community Q&A</a>
-            </div>
-            <div class="hub-card-foot">
-              <span class="hub-url caption-5">kurocat-download.app.workbuddy.host</span>
-              <a class="hub-go button-sm" href="https://kurocat-download.app.workbuddy.host/?sharecode=JVAABIVZ7L" target="_blank" rel="noopener">
-                <span data-i18n="hub_open">Open</span>
-                <svg class="icon icon-sm" aria-hidden="true"><use href="#ph-arrow-up-right" /></svg>
-              </a>
-            </div>
-          </article>
-
-          <!-- Portal 2: Skin Workshop & Plaza -->
-          <article class="hub-card reveal">
-            <div>
-              <div class="hub-card-top">
-                <span class="hub-icon-box" aria-hidden="true"><svg class="icon icon-lg"><use href="#ph-palette" /></svg></span>
-                <span class="hub-badge caption-3" data-i18n="hub_2_badge">Editor & Community</span>
-              </div>
-              <h3 class="heading-5" data-i18n="hub_2_title">KuroCat Skin Workshop & Plaza</h3>
-              <p class="body-6" data-i18n="hub_2_desc">Turn your own cat into a 2.5D desktop pet right in the browser, or browse Xiao Douni, Monster Hunter Palico, Tabby, and custom keyboards.</p>
-            </div>
-            <div class="hub-sublinks">
-              <a class="hub-chip caption-4" href="https://workshop.kurocat.cc/#workshop" target="_blank" rel="noopener" data-i18n="hub_2_c1">Skin Editor</a>
-              <a class="hub-chip caption-4" href="https://workshop.kurocat.cc/#plaza" target="_blank" rel="noopener" data-i18n="hub_2_c2">Skin Plaza</a>
-              <a class="hub-chip caption-4" href="https://workshop.kurocat.cc/#accessories" target="_blank" rel="noopener" data-i18n="hub_2_c3">Accessories</a>
-              <a class="hub-chip caption-4" href="https://workshop.kurocat.cc/#keyboards" target="_blank" rel="noopener" data-i18n="hub_2_c4">Keyboards</a>
-            </div>
-            <div class="hub-card-foot">
-              <span class="hub-url caption-5">workshop.kurocat.cc</span>
-              <a class="hub-go button-sm" href="https://workshop.kurocat.cc/" target="_blank" rel="noopener">
-                <span data-i18n="hub_open">Open</span>
-                <svg class="icon icon-sm" aria-hidden="true"><use href="#ph-arrow-up-right" /></svg>
-              </a>
-            </div>
-          </article>
-
-          <!-- Portal 3: GitHub Repository & Releases -->
-          <article class="hub-card reveal">
-            <div>
-              <div class="hub-card-top">
-                <span class="hub-icon-box" aria-hidden="true"><svg class="icon icon-lg"><use href="#ph-code" /></svg></span>
-                <span class="hub-badge caption-3">MIT Open Source</span>
-              </div>
-              <h3 class="heading-5" data-i18n="hub_3_title">GitHub Repository & Releases</h3>
-              <p class="body-6" data-i18n="hub_3_desc">Fully open source native code across all three platforms, built transparently via GitHub Actions. Star, report issues, or contribute skins.</p>
-            </div>
-            <div class="hub-sublinks">
-              <a class="hub-chip caption-4" href="https://github.com/chanke17/KuroCat/releases/latest" target="_blank" rel="noopener" data-i18n="hub_3_c1">Latest Release</a>
-              <a class="hub-chip caption-4" href="https://github.com/chanke17/KuroCat/issues" target="_blank" rel="noopener" data-i18n="hub_3_c2">Report Issue</a>
-              <a class="hub-chip caption-4" href="https://github.com/chanke17/KuroCat-Workshop/pulls" target="_blank" rel="noopener" data-i18n="hub_3_c3">Submit Skin PR</a>
-            </div>
-            <div class="hub-card-foot">
-              <span class="hub-url caption-5">github.com/chanke17/KuroCat</span>
-              <a class="hub-go button-sm" href="https://github.com/chanke17/KuroCat" target="_blank" rel="noopener">
-                <span data-i18n="hub_repo">View Source</span>
-                <svg class="icon icon-sm" aria-hidden="true"><use href="#ph-arrow-up-right" /></svg>
-              </a>
-            </div>
-          </article>
-
-          <!-- Portal 4: Format Spec & Creator Guide -->
-          <article class="hub-card reveal">
-            <div>
-              <div class="hub-card-top">
-                <span class="hub-icon-box" aria-hidden="true"><svg class="icon icon-lg"><use href="#ph-book" /></svg></span>
-                <span class="hub-badge caption-3" data-i18n="hub_4_badge">Docs & Spec</span>
-              </div>
-              <h3 class="heading-5" data-i18n="hub_4_title">Open Format Spec & Creator Guide</h3>
-              <p class="body-6" data-i18n="hub_4_desc">Read the .kurocat v1 coordinate spec, bezier region schema, sticker anchors, and community submission workflow.</p>
-            </div>
-            <div class="hub-sublinks">
-              <a class="hub-chip caption-4" href="/obs-guide/">OBS Setup Guide</a>
-              <a class="hub-chip caption-4" href="https://github.com/chanke17/KuroCat/blob/main/docs/skin-format.md" target="_blank" rel="noopener" data-i18n="hub_4_c1">.kurocat Spec</a>
-              <a class="hub-chip caption-4" href="https://github.com/chanke17/KuroCat-Workshop/blob/main/community/README.md" target="_blank" rel="noopener" data-i18n="hub_4_c2">Submission Guide</a>
-              <a class="hub-chip caption-4" href="/llms.txt" target="_blank" rel="noopener">llms.txt</a>
-            </div>
-            <div class="hub-card-foot">
-              <span class="hub-url caption-5">docs/skin-format.md</span>
-              <a class="hub-go button-sm" href="https://github.com/chanke17/KuroCat/blob/main/docs/skin-format.md" target="_blank" rel="noopener">
-                <span data-i18n="hub_doc">Read Docs</span>
-                <svg class="icon icon-sm" aria-hidden="true"><use href="#ph-arrow-up-right" /></svg>
-              </a>
-            </div>
-          </article>
-        </div>
-      </div>
-    </section>
-
-    <!-- 3. MANDATORY TAGLINE REVEAL SECTION (B11) -->
-    <section class="tagline-section section-divider" id="philosophy" aria-label="Core Philosophy">
-      <div class="wrap">
-        <div class="tagline-wrap">
-          <p class="tagline-text heading-2" id="taglineReveal" data-tagline-zh="不是笨重的网页套壳，|也不偷录任何一次按键。|每一帧转头、眨眼与拍键，|都在你本机原生渲染。" data-tagline-en="No bloated browser wrapper.|No keystrokes ever logged.|Every head turn, blink, and keystroke|runs natively on your machine.">
-            <span class="tagline-token">No bloated browser wrapper.</span>
-            <span class="tagline-token">No keystrokes ever logged.</span>
-            <span class="tagline-token">Every head turn, blink, and keystroke</span>
-            <span class="tagline-token tagline-token-accent">runs natively on your machine.</span>
-          </p>
-        </div>
-      </div>
-    </section>
-
-    <!-- 4. CORE BENEFITS (#features) -->
-    <section class="section section-oatmeal section-divider" id="features">
-      <div class="wrap">
-        <div class="section-head reveal">
-          <div class="eyebrow caption-3"><span class="eyebrow-dot" aria-hidden="true"></span><span data-i18n="feat_eyebrow">Why KuroCat</span></div>
-          <h2 class="heading-2" data-i18n="feat_h2">Not a static sticker, it reacts to everything you do</h2>
-          <p class="body-3" data-i18n="feat_sub">Built from native input APIs and real time 2.5D vector physics for coding, gaming, digital illustration, and livestreaming.</p>
-        </div>
-
-        <div class="benefit-grid">
-          <article class="benefit-card reveal">
-            <span class="benefit-icon" aria-hidden="true"><svg class="icon"><use href="#ph-keyboard" /></svg></span>
-            <h3 class="heading-5" data-i18n="f1_t">Full state keyboard, mouse & 2.5D graphics tablet</h3>
-            <p class="body-6" data-i18n="f1_d">Uses IOHIDManager on macOS, Raw Input on Windows, and XInput2 + evdev on Linux. Tracks rapid typing, WASD holds, stylus strokes, 3 key hind foot kicks, and 4 key tail taps.</p>
-            <div class="benefit-meta caption-4">
-              <span class="meta-pill">Raw Input / IOHID</span>
-              <span class="meta-pill">Auto Stylus Mode</span>
-              <span class="meta-pill">True NKRO</span>
-            </div>
-          </article>
-
-          <article class="benefit-card reveal">
-            <span class="benefit-icon" aria-hidden="true"><svg class="icon"><use href="#ph-eye" /></svg></span>
-            <h3 class="heading-5" data-i18n="f2_t">2.5D spherical head tracking & expressive physics</h3>
-            <p class="body-6" data-i18n="f2_d">Head, ears, whiskers, and eyes rotate smoothly toward your cursor. Shake fast for wide hunting eyes, pet for purrs, lift by the scruff with 2D inertia, and watch it curl up to sleep at low CPU.</p>
-            <div class="benefit-meta caption-4">
-              <span class="meta-pill">Hunting Boba Eyes</span>
-              <span class="meta-pill">2D Scruff Inertia</span>
-              <span class="meta-pill">Low-FPS Sleep</span>
-            </div>
-          </article>
-
-          <article class="benefit-card reveal">
-            <span class="benefit-icon" aria-hidden="true"><svg class="icon"><use href="#ph-monitor" /></svg></span>
-            <h3 class="heading-5" data-i18n="f3_t">Built for OBS streaming & distraction free gaming</h3>
-            <p class="body-6" data-i18n="f3_d">One click OBS transparent window or chroma green (#00FF00) mode, automatic fullscreen hiding, always on top watchdog, ±180° snapped rotation, and full mouse click through.</p>
-            <div class="benefit-meta caption-4">
-              <span class="meta-pill">OBS Alpha / Green</span>
-              <span class="meta-pill">Auto Fullscreen Hide</span>
-              <span class="meta-pill">±180° Snap Rotate</span>
-            </div>
-          </article>
-
-          <article class="benefit-card reveal">
-            <span class="benefit-icon" aria-hidden="true"><svg class="icon"><use href="#ph-sparkle" /></svg></span>
-            <h3 class="heading-5" data-i18n="f4_t">Open custom skin ecosystem in under 1 MB</h3>
-            <p class="body-6" data-i18n="f4_d">Zero Electron bloat: 802 KB single executable on Windows and under 1 MB Universal binary on macOS. Drag and drop .kurocat cat skins and .kurokb keyboard themes right onto your cat.</p>
-            <div class="benefit-meta caption-4">
-              <span class="meta-pill">.kurocat Skins</span>
-              <span class="meta-pill">.kurokb Keyboards</span>
-              <span class="meta-pill">Native Settings UI</span>
-            </div>
-          </article>
-        </div>
-      </div>
-    </section>
-
-    <!-- 5. SKIN GALLERY (#skins) -->
-    <section class="section section-divider" id="skins">
-      <div class="wrap">
-        <div class="section-head reveal">
-          <div class="eyebrow caption-3"><span class="eyebrow-dot" aria-hidden="true"></span><span data-i18n="skins_eyebrow">Skins & Themes</span></div>
-          <h2 class="heading-2" data-i18n="skins_h2">Built in coats plus unlimited community creations</h2>
-          <p class="body-3" data-i18n="skins_sub">Toggleable soft white sticker outline stays sharp against dark desktops and IDEs. Drag any .kurocat file onto the cat to wear instantly.</p>
-        </div>
-
-        <div class="skin-grid">
-          <figure class="skin-card reveal">
-            <div class="skin-thumb"><img src="../assets/preview_black.jpg" alt="KuroCat Classic Black Cat skin with neon yellow-green eyes and mechanical keyboard" loading="lazy" /></div>
-            <figcaption><b class="title-3" data-i18n="sk_1">Classic Black Cat</b><span class="caption-2" data-i18n="sk_1_d">Neon chartreuse eyes · Soft white sticker outline</span></figcaption>
-          </figure>
-          <figure class="skin-card reveal">
-            <div class="skin-thumb"><img src="../assets/preview_siamese.jpg" alt="KuroCat Seal Point Siamese skin with caramel mask and sapphire blue eyes" loading="lazy" /></div>
-            <figcaption><b class="title-3" data-i18n="sk_2">Seal Point Siamese</b><span class="caption-2" data-i18n="sk_2_d">Sleek build · Caramel point gradient & sapphire eyes</span></figcaption>
-          </figure>
-          <figure class="skin-card reveal">
-            <div class="skin-thumb"><img src="../assets/preview_shorthair.jpg" alt="KuroCat American Shorthair Silver Tabby skin" loading="lazy" /></div>
-            <figcaption><b class="title-3" data-i18n="sk_3">Silver Shorthair Tabby</b><span class="caption-2" data-i18n="sk_3_d">Silver mackerel stripes · Warm cream forelegs</span></figcaption>
-          </figure>
-          <figure class="skin-card reveal">
-            <div class="skin-thumb"><img src="../assets/preview_orangeWhite.jpg" alt="KuroCat Orange and White Tabby desktop cat skin" loading="lazy" /></div>
-            <figcaption><b class="title-3" data-i18n="sk_4">Orange & White</b><span class="caption-2" data-i18n="sk_4_d">Warm ginger back stripes · Cream belly & amber eyes</span></figcaption>
-          </figure>
-          <figure class="skin-card reveal">
-            <div class="skin-thumb"><img src="../assets/preview_tabby_windows.png" alt="KuroCat Brown Mackerel Tabby skin with olive-gold eyes" loading="lazy" /></div>
-            <figcaption><b class="title-3" data-i18n="sk_5">Brown Mackerel Tabby</b><span class="caption-2" data-i18n="sk_5_d">Oat brown stripes · Feathered bib & olive gold eyes</span></figcaption>
-          </figure>
-
-          <article class="skin-card skin-card-workshop reveal">
-            <div>
-              <span class="hub-badge hub-badge-accent caption-3" data-i18n="sk_6_badge">Community Plaza</span>
-              <h3 class="heading-5" data-i18n="sk_6">Xiao Douni, Monster Hunter Palico & more</h3>
-              <p class="body-6" data-i18n="sk_6_d">Download community creations including comic style Xiao Douni, Monster Hunter Dazed Cat, Abyssinian, and custom keyboards for free.</p>
-            </div>
-            <a class="btn btn-on-dark button-sm" href="https://workshop.kurocat.cc/#plaza" target="_blank" rel="noopener">
-              <span data-i18n="sk_6_cta">Browse Skin Plaza</span>
-              <svg class="icon icon-sm" aria-hidden="true"><use href="#ph-arrow-up-right" /></svg>
-            </a>
-          </article>
-        </div>
-      </div>
-    </section>
-
-    <!-- 6. GEO & SEO COMPARISON MATRIX (#compare) -->
-    <section class="section section-oatmeal section-divider" id="compare">
-      <div class="wrap">
-        <div class="section-head reveal">
-          <div class="eyebrow caption-3"><span class="eyebrow-dot" aria-hidden="true"></span><span data-i18n="cmp_eyebrow">Side by Side</span></div>
-          <h2 class="heading-2" data-i18n="cmp_h2">How KuroCat compares to Bongo Cat & web pets</h2>
-          <p class="body-3" data-i18n="cmp_sub">A direct, factual comparison across architecture, platform support, streaming readiness, and privacy.</p>
-        </div>
-
-        <div class="table-shell reveal">
-          <table class="compare-table body-6">
-            <thead>
-              <tr>
-                <th class="title-4" data-i18n="cmp_c0">Criteria</th>
-                <th class="title-4 col-kuro">KuroCat (v1.4.3)</th>
-                <th class="title-4" data-i18n="cmp_c2">Classic Bongo Cat</th>
-                <th class="title-4" data-i18n="cmp_c3">Electron Desktop Pets</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td class="body-4" data-i18n="cmp_r1_0">Architecture & size</td>
-                <td class="col-kuro" data-i18n="cmp_r1_1">Native Swift / Win32 C++ / GTK3, 802 KB single exe</td>
-                <td data-i18n="cmp_r1_2">Fragmented community forks with uneven quality</td>
-                <td data-i18n="cmp_r1_3">Bundled Chromium, often 100+ MB download</td>
-              </tr>
-              <tr>
-                <td class="body-4" data-i18n="cmp_r2_0">Platforms</td>
-                <td class="col-kuro" data-i18n="cmp_r2_1">macOS, Windows, Linux, UnionTech UOS & Kylin</td>
-                <td data-i18n="cmp_r2_2">Mostly Windows only</td>
-                <td data-i18n="cmp_r2_3">Cross platform with high RAM usage</td>
-              </tr>
-              <tr>
-                <td class="body-4" data-i18n="cmp_r3_0">OBS & graphics tablet</td>
-                <td class="col-kuro" data-i18n="cmp_r3_1">Built in transparent / green screen OBS & auto stylus</td>
-                <td data-i18n="cmp_r3_2">Manual config files and third party plugins</td>
-                <td data-i18n="cmp_r3_3">Usually basic keyboard & mouse only</td>
-              </tr>
-              <tr>
-                <td class="body-4" data-i18n="cmp_r4_0">Custom skins</td>
-                <td class="col-kuro" data-i18n="cmp_r4_1">Open .kurocat & .kurokb formats + browser Workshop</td>
-                <td data-i18n="cmp_r4_2">Manual PNG sprite sheet swapping</td>
-                <td data-i18n="cmp_r4_3">Often closed source or paid packs</td>
-              </tr>
-              <tr>
-                <td class="body-4" data-i18n="cmp_r5_0">Gaming & idle efficiency</td>
-                <td class="col-kuro" data-i18n="cmp_r5_1">Click through, fullscreen auto hide, low FPS sleep</td>
-                <td data-i18n="cmp_r5_2">No fullscreen auto hide or sleep pacing</td>
-                <td data-i18n="cmp_r5_3">Background browser process drains battery</td>
-              </tr>
-              <tr>
-                <td class="body-4" data-i18n="cmp_r6_0">Privacy & license</td>
-                <td class="col-kuro" data-i18n="cmp_r6_1">100% MIT open source, zero keystroke logging, free</td>
-                <td data-i18n="cmp_r6_2">Many repacks lack clear source code</td>
-                <td data-i18n="cmp_r6_3">Frequently closed source telemetry</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </section>
-
-    <!-- 7. HOW IT WORKS + PLATFORM DOWNLOAD HUB (#download) -->
-    <section class="section section-divider" id="download">
-      <div class="wrap">
-        <div class="section-head reveal">
-          <div class="eyebrow caption-3"><span class="eyebrow-dot" aria-hidden="true"></span><span data-i18n="dl_eyebrow">Get Started in 3 Steps</span></div>
-          <h2 class="heading-2" data-i18n="dl_h2">Pick your OS and adopt your cat in seconds</h2>
-          <p class="body-3" data-i18n="dl_sub">Choose the fast direct mirror or official GitHub Releases. Every build is compiled automatically via GitHub Actions with matching SHA 256 hashes.</p>
-        </div>
-
-        <div class="steps-grid">
-          <div class="step-card reveal">
-            <span class="step-num caption-3">01</span>
-            <h3 class="title-2" data-i18n="st_1_t">Download your build</h3>
-            <p class="body-6" data-i18n="st_1_d">Your OS is detected automatically. Download via the fast direct mirror or GitHub Releases.</p>
-          </div>
-          <div class="step-card reveal">
-            <span class="step-num caption-3">02</span>
-            <h3 class="title-2" data-i18n="st_2_t">Launch & interact</h3>
-            <p class="body-6" data-i18n="st_2_d">Run the single exe on Windows, drag to Applications on macOS, or install .deb / user tar.gz on Linux.</p>
-          </div>
-          <div class="step-card reveal">
-            <span class="step-num caption-3">03</span>
-            <h3 class="title-2" data-i18n="st_3_t">Drop skins to customize</h3>
-            <p class="body-6" data-i18n="st_3_d">Right click for native Settings, OBS mode, or drag any .kurocat or .kurokb file onto the cat.</p>
-          </div>
-        </div>
-
-        <div class="download-shell reveal">
-          <div class="platform-tabs" role="tablist" aria-label="Select operating system">
-            <button class="platform-tab title-4 active" role="tab" aria-selected="true" data-platform="mac" type="button">
-              <svg class="icon icon-solid" aria-hidden="true"><use href="#ph-apple" /></svg>
-              <span>macOS</span>
-              <small class="caption-5">Apple Silicon &amp; Intel</small>
+  <main id="main">
+    <!-- Hero + scroll story share one grid; the live cat stage stays pinned on the right -->
+    <section class="show" id="top" aria-label="KuroCat introduction and live demo">
+      <div class="show-grid">
+        <div class="hero">
+          <h1 class="hero-name" data-intro style="--i:0">KuroCat</h1>
+          <p class="hero-line" data-intro style="--i:1">A native little cat that sits on your keyboard.</p>
+          <p class="hero-sub" data-intro style="--i:2">Type and it taps the keys with you. Shake the mouse and its eyes go wide. KuroCat runs natively on macOS, Windows, Linux and UOS, and every keystroke stays in local memory to drive the animation. Nothing is logged or uploaded.</p>
+          <div class="hero-actions" data-intro style="--i:3">
+            <button class="btn btn-blue btn-l" id="tryBtn" type="button">
+              <svg class="i" aria-hidden="true"><use href="#i-key" /></svg>
+              <span>Press any key to play</span>
             </button>
-            <button class="platform-tab title-4" role="tab" aria-selected="false" data-platform="windows" type="button">
-              <svg class="icon icon-solid" aria-hidden="true"><use href="#ph-windows" /></svg>
-              <span>Windows</span>
-              <small class="caption-5">Win 7–11 x64</small>
-            </button>
-            <button class="platform-tab title-4" role="tab" aria-selected="false" data-platform="linux" type="button">
-              <svg class="icon icon-solid" aria-hidden="true"><use href="#ph-linux" /></svg>
-              <span>Linux / UOS</span>
-              <small class="caption-5">x86_64 &amp; ARM64</small>
-            </button>
+            <a class="link-more" id="heroDl" href="#download"><span id="heroDlLabel">Download free</span><svg class="i i-xs" aria-hidden="true"><use href="#i-chevron" /></svg></a>
           </div>
+          <ul class="hero-spec" data-intro style="--i:4">
+            <li><svg class="i i-xs" aria-hidden="true"><use href="#i-check" /></svg>850 KB single .exe</li>
+            <li><svg class="i i-xs" aria-hidden="true"><use href="#i-check" /></svg>macOS · Windows · Linux · UOS</li>
+            <li><svg class="i i-xs" aria-hidden="true"><use href="#i-check" /></svg>0 bytes uploaded</li>
+            <li><svg class="i i-xs" aria-hidden="true"><use href="#i-check" /></svg>MIT, free forever</li>
+          </ul>
+        </div>
 
-          <!-- macOS Panel -->
-          <div class="platform-panel active" data-panel="mac">
-            <div class="panel-header">
-              <div class="panel-info">
-                <h3 class="heading-5" data-i18n="mac_t">macOS Universal (Apple Silicon & Intel)</h3>
-                <p class="body-6" data-i18n="mac_d">Single zip supporting M series and Intel Macs on macOS 11+. Signed with a stable certificate so updates keep your Input Monitoring permission.</p>
-                <div class="panel-meta-row caption-4">
-                  <span>v1.4.3</span>
-                  <span>·</span>
-                  <span>944 KB</span>
-                  <span>·</span>
-                  <span>KuroCat-macOS-universal.zip</span>
-                </div>
+        <div class="stage" id="stage" data-mode="desk" data-intro style="--i:5">
+          <div class="stage-panel">
+          <div class="stage-desk" aria-hidden="true">
+            <div class="win">
+              <div class="win-bar"><span></span><span></span><span></span><b>type-anything.txt</b></div>
+              <div class="win-body">
+                <p class="win-note">Whatever you type here never leaves this page.</p>
+                <p class="win-line"><span id="typedText"></span><span class="caret"></span><span class="win-ghost" id="typedGhost">Just start typing and the cat taps along…</span></p>
               </div>
             </div>
-            <div class="panel-actions">
-              <a class="btn btn-primary button-md" href="https://kurocat-download.app.workbuddy.host/downloads/KuroCat-macOS-universal.zip?sharecode=JVAABIVZ7L" target="_blank" rel="noopener">
-                <svg class="icon" aria-hidden="true"><use href="#ph-download" /></svg>
-                <span data-i18n="mac_dl_cn">Fast Mirror Download</span>
-              </a>
-              <a class="btn btn-secondary button-md" href="https://github.com/chanke17/KuroCat/releases/download/v1.4.3/KuroCat-macOS-universal.zip" target="_blank" rel="noopener">
-                <span data-i18n="dl_gh">GitHub Release</span>
-                <svg class="icon icon-sm" aria-hidden="true"><use href="#ph-arrow-up-right" /></svg>
-              </a>
-            </div>
-            <details class="checksum-box">
-              <summary class="caption-3"><span>SHA-256 Checksum</span><svg class="icon icon-sm" aria-hidden="true"><use href="#ph-caret-down" /></svg></summary>
-              <div class="checksum-body">
-                <code class="caption-5">85b85ca6c01099a4e80345370d66c9a38dcb8a304cb753a1f3ab3ad43601013e</code>
-                <button class="btn btn-ghost button-xsm copy-btn" type="button" data-copy="85b85ca6c01099a4e80345370d66c9a38dcb8a304cb753a1f3ab3ad43601013e">
-                  <svg class="icon icon-sm" aria-hidden="true"><use href="#ph-copy" /></svg>
-                  <span data-i18n="copy">Copy</span>
-                </button>
-              </div>
-            </details>
-            <div class="panel-note caption-2" data-i18n="mac_note">On first launch, enable KuroCat in System Settings → Privacy & Security → Input Monitoring, then restart from the menu bar.</div>
           </div>
-
-          <!-- Windows Panel -->
-          <div class="platform-panel" data-panel="windows">
-            <div class="panel-header">
-              <div class="panel-info">
-                <h3 class="heading-5" data-i18n="win_t">Windows x64 Portable Single File</h3>
-                <p class="body-6" data-i18n="win_d">Zero external runtime dependencies for Windows 7 SP1 through Windows 11. Runs straight from the single executable with native in app auto update.</p>
-                <div class="panel-meta-row caption-4">
-                  <span>v1.4.3</span>
-                  <span>·</span>
-                  <span>802 KB</span>
-                  <span>·</span>
-                  <span>KuroCat-Windows-x64.exe</span>
-                </div>
-              </div>
+          <div class="stage-green" aria-hidden="true"><span>#00FF00</span></div>
+          <div class="pet-canvas-box" id="petCanvasBox">
+            <div class="pet-mount" id="petHomeMount">
+              <canvas id="livePetCanvas" width="720" height="640" aria-label="KuroCat live web pet: type to make it tap keys, move the mouse to turn its head, press and drag to lift it"></canvas>
             </div>
-            <div class="panel-actions">
-              <a class="btn btn-primary button-md" href="https://kurocat-download.app.workbuddy.host/downloads/KuroCat-Windows-x64.exe?sharecode=JVAABIVZ7L" target="_blank" rel="noopener">
-                <svg class="icon" aria-hidden="true"><use href="#ph-download" /></svg>
-                <span data-i18n="win_dl_cn">Fast Mirror Download</span>
-              </a>
-              <a class="btn btn-secondary button-md" href="https://github.com/chanke17/KuroCat/releases/download/v1.4.3/KuroCat-Windows-x64.exe" target="_blank" rel="noopener">
-                <span data-i18n="dl_gh">GitHub Release</span>
-                <svg class="icon icon-sm" aria-hidden="true"><use href="#ph-arrow-up-right" /></svg>
-              </a>
+            <div class="pet-docked" id="petDockedNotice">
+              <p>The cat is keeping you company in the bottom-right corner.</p>
+              <button class="btn btn-grey btn-s" type="button" id="petDockBackBtn">Bring it back</button>
             </div>
-            <details class="checksum-box">
-              <summary class="caption-3"><span>SHA-256 Checksum</span><svg class="icon icon-sm" aria-hidden="true"><use href="#ph-caret-down" /></svg></summary>
-              <div class="checksum-body">
-                <code class="caption-5">a54e4ed722e8905c37cf8f91bb242cc13a26228833006a40626ec85987a12f06</code>
-                <button class="btn btn-ghost button-xsm copy-btn" type="button" data-copy="a54e4ed722e8905c37cf8f91bb242cc13a26228833006a40626ec85987a12f06">
-                  <svg class="icon icon-sm" aria-hidden="true"><use href="#ph-copy" /></svg>
-                  <span data-i18n="copy">Copy</span>
-                </button>
-              </div>
-            </details>
-            <div class="panel-note caption-2" data-i18n="win_note">If SmartScreen warns about an unrecognized app, verify the SHA 256 hash above before running. Launch as Administrator for elevated games or WPS.</div>
           </div>
-
-          <!-- Linux Panel -->
-          <div class="platform-panel" data-panel="linux">
-            <div class="panel-header">
-              <div class="panel-info">
-                <h3 class="heading-5" data-i18n="lin_t">Linux / UnionTech UOS / Kylin</h3>
-                <p class="body-6" data-i18n="lin_d">Built on Debian 10 (glibc 2.28) for Ubuntu, Debian, Deepin, UOS 20, Kylin V10, Arch, and Fedora in x86_64 and ARM64.</p>
-                <div class="panel-meta-row caption-4">
-                  <span>v1.4.3</span>
-                  <span>·</span>
-                  <span>x86_64 &amp; ARM64</span>
-                  <span>·</span>
-                  <span>.deb / .tar.gz</span>
-                </div>
-              </div>
-            </div>
-            <div class="linux-grid">
-              <div class="linux-card">
-                <div class="linux-card-head">
-                  <b class="title-3">amd64 / x86_64</b>
-                  <small class="caption-5">Intel · AMD · Zhaoxin · Hygon</small>
-                </div>
-                <a class="btn btn-primary button-sm" href="https://kurocat-download.app.workbuddy.host/downloads/KuroCat-Linux-amd64.deb?sharecode=JVAABIVZ7L" target="_blank" rel="noopener">.deb Package · 205 KB</a>
-                <a class="btn btn-secondary button-sm" href="https://kurocat-download.app.workbuddy.host/downloads/KuroCat-Linux-x86_64.tar.gz?sharecode=JVAABIVZ7L" target="_blank" rel="noopener">User-Space tar.gz · 249 KB</a>
-              </div>
-              <div class="linux-card">
-                <div class="linux-card-head">
-                  <b class="title-3">arm64</b>
-                  <small class="caption-5">Phytium · Kunpeng · Raspberry Pi</small>
-                </div>
-                <a class="btn btn-primary button-sm" href="https://kurocat-download.app.workbuddy.host/downloads/KuroCat-Linux-arm64.deb?sharecode=JVAABIVZ7L" target="_blank" rel="noopener">.deb Package · 175 KB</a>
-                <a class="btn btn-secondary button-sm" href="https://kurocat-download.app.workbuddy.host/downloads/KuroCat-Linux-arm64.tar.gz?sharecode=JVAABIVZ7L" target="_blank" rel="noopener">User-Space tar.gz · 226 KB</a>
-              </div>
-            </div>
-            <div class="panel-note caption-2" data-i18n="lin_note">Run bash install.sh inside the extracted tar.gz for password free user installation. On pure Wayland, run sudo usermod -aG input $USER once and re login.</div>
           </div>
+          <div class="stage-hud">
+            <p class="hud-caption" id="stageCaption" aria-live="polite">Type, shake the mouse, or press and drag the cat</p>
+            <div class="hud-right">
+              <span class="hud-count" id="petKeyCounter">KEYS 0</span>
+              <button class="hud-btn" id="petFloatToggle" type="button" aria-pressed="false">
+                <svg class="i i-xs" aria-hidden="true"><use href="#i-float" /></svg>
+                <span id="petFloatLabel">Let it follow you</span>
+              </button>
+            </div>
+          </div>
+        </div>
 
-          <div class="download-foot caption-2">
-            <span data-i18n="dl_trust">Every package is built by GitHub Actions with identical SHA 256 checksums across mirrors.</span>
-            <div class="download-foot-links">
-              <a href="https://kurocat-download.app.workbuddy.host/?sharecode=JVAABIVZ7L" target="_blank" rel="noopener"><span data-i18n="dl_cn_page">Dedicated Mirror Page</span><svg class="icon icon-sm" aria-hidden="true"><use href="#ph-arrow-up-right" /></svg></a>
-              <a href="https://github.com/chanke17/KuroCat/releases" target="_blank" rel="noopener"><span>GitHub Releases</span><svg class="icon icon-sm" aria-hidden="true"><use href="#ph-arrow-up-right" /></svg></a>
+        <div class="story" id="features">
+          <h2 class="story-head">Not a GIF.<br>It is actually watching you.</h2>
+          <article class="step" data-step="type">
+            <h3>Whatever key you hit, it hits too.</h3>
+            <p>It keeps up with coding, typing and held WASD in games. Hold 3 keys at once and it reaches out a back foot; hold 4 and the tail joins in. On a graphics tablet it switches to a pen grip by itself.</p>
+            <p class="step-meta">macOS IOHIDManager · Windows Raw Input · Linux XInput2 / evdev · full NKRO</p>
+          </article>
+          <article class="step" data-step="hunt">
+            <h3>Flick the mouse and it starts hunting.</h3>
+            <p>Head, ears and whiskers follow your cursor with a 2.5D spherical turn. Shake the mouse fast and it crouches low, its pupils swell into big round hunting eyes, and the tail flicks faster.</p>
+            <p class="step-meta">Try shaking your mouse fast on this screen</p>
+          </article>
+          <article class="step" data-step="pet">
+            <h3>Pet its head, or lift it by the scruff.</h3>
+            <p>Stroke its head and it squints, folds its ears and sparkles. Press and drag to lift it by the scruff: the body stretches into a long cat while paws and tail swing with 2D inertia.</p>
+            <p class="step-meta">New in v1.4.4: front-facing long-cat drag, and dragging can be turned off</p>
+          </article>
+          <article class="step" data-step="sleep">
+            <h3>Ignore it and it curls up to sleep.</h3>
+            <p>Left alone for a while, it yawns, curls into a ball and puffs out a few z’s. Once asleep it drops its frame rate to save power.</p>
+            <p class="step-meta">Adaptive 30 / 20 / 10 fps, with an optional 60 fps mode</p>
+          </article>
+          <article class="step" data-step="obs">
+            <h3>When you go live, it is your co-host.</h3>
+            <p>Turn on OBS transparent window capture or the #00FF00 green-screen mode with one click and add it to OBS, Douyin Live Companion or Bilibili Live. Fullscreen auto-hide pauses while you stream, so the cat never vanishes mid-show.</p>
+            <a class="link-more" href="/obs-guide/">Read the OBS setup guide<svg class="i i-xs" aria-hidden="true"><use href="#i-chevron" /></svg></a>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- Native & tiny -->
+    <section class="native" id="native">
+      <div class="wrap">
+        <h2 class="sec-h">Under 1 MB, native on four systems.</h2>
+        <p class="sec-sub">No Electron, no bundled browser. Each platform is written against its own graphics and input APIs, and the cat sits quietly in your menu bar or tray.</p>
+
+        <figure class="sizes">
+          <div class="size-row is-kuro">
+            <span class="size-name">KuroCat · Windows</span>
+            <span class="size-track"><span class="size-bar" style="--v:0.00553"></span></span>
+            <span class="size-val">850 KB</span>
+          </div>
+          <div class="size-row is-kuro">
+            <span class="size-name">KuroCat · macOS Universal</span>
+            <span class="size-track"><span class="size-bar" style="--v:0.00663"></span></span>
+            <span class="size-val">1018 KB</span>
+          </div>
+          <div class="size-row is-other">
+            <span class="size-name">Typical Electron desktop pet</span>
+            <span class="size-track"><span class="size-bar" style="--v:1"></span></span>
+            <span class="size-val">80–150 MB</span>
+          </div>
+          <figcaption>Installer size drawn to scale. KuroCat figures come from the v1.4.5 release.</figcaption>
+        </figure>
+
+        <ul class="platforms">
+          <li>
+            <span class="plat-mark" aria-hidden="true"><svg class="i"><use href="#i-apple" /></svg></span>
+            <h3>macOS</h3>
+            <p class="plat-stack">Swift · CoreGraphics · IOHIDManager</p>
+            <p>One build for Apple silicon and Intel, macOS 11 or later. Lives in the menu bar, not the Dock.</p>
+          </li>
+          <li>
+            <span class="plat-mark" aria-hidden="true"><svg class="i"><use href="#i-windows" /></svg></span>
+            <h3>Windows</h3>
+            <p class="plat-stack">C++17 · GDI+ · Raw Input</p>
+            <p>Windows 7 SP1 through 11. A single portable exe with no runtime dependencies, living in the tray.</p>
+          </li>
+          <li>
+            <span class="plat-mark" aria-hidden="true"><svg class="i"><use href="#i-linux" /></svg></span>
+            <h3>Linux</h3>
+            <p class="plat-stack">C++17 · GTK3 / Cairo · XInput2 / evdev</p>
+            <p>Ubuntu, Debian, Deepin, Arch, Fedora. Double-click on X11; Wayland supported too.</p>
+          </li>
+          <li>
+            <span class="plat-mark" aria-hidden="true"><svg class="i"><use href="#i-chip" /></svg></span>
+            <h3>UOS / Kylin</h3>
+            <p class="plat-stack">x86_64 · ARM64</p>
+            <p>UnionTech UOS 20 and Kylin V10, on Phytium and Kunpeng too. The tar.gz installs without sudo.</p>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- 3D keyboard: every key counts -->
+    <section class="nkro" id="nkro">
+      <div class="wrap">
+        <h2 class="sec-h">Every key counts.</h2>
+        <p class="sec-sub">The desktop app listens at the hardware level, so it catches all ten fingers at once. Try it on the keyboard below and hold down as many keys as you can.</p>
+      </div>
+      <div class="kb-stage" id="kbStage">
+        <canvas class="kb-canvas" id="kbCanvas" aria-hidden="true"></canvas>
+        <div class="kb-flat" id="kbFlat" aria-hidden="true"></div>
+      </div>
+      <div class="wrap">
+        <p class="nkro-meter" aria-live="polite"><span>Held now</span> <b id="nkroNow">0</b> <span class="nkro-sep">/</span> <span>Best</span> <b id="nkroBest">0</b></p>
+        <p class="nkro-privacy">This keyboard only lights up inside your browser. The desktop app works the same way: keystrokes stay in local memory to drive the animation, with no logs and no uploads, and the source is open for anyone to audit.</p>
+      </div>
+    </section>
+
+    <!-- Skins -->
+    <section class="skins" id="skins">
+      <div class="wrap">
+        <h2 class="sec-h">New coat, same cat.</h2>
+        <p class="sec-sub">Six native skins are built in and switch with one click. You can also drag community .kurocat cat skins and .kurokb keyboard skins straight onto the cat.</p>
+        <div class="skin-show">
+          <div class="skin-view" id="skinView">
+            <canvas id="skinCanvas" width="720" height="640" aria-label="Preview of the cat in the selected skin"></canvas>
+          </div>
+          <div class="skin-picker">
+            <p class="skin-name" id="skinName">Siamese</p>
+            <p class="skin-desc" id="skinDesc">Long and sleek, caramel point mask, sapphire eyes.</p>
+            <div class="swatches" role="radiogroup" aria-label="Choose a skin">
+              <button class="swatch pet-skin-chip active" type="button" role="radio" aria-checked="true" data-skin-id="siamese" data-name="Siamese" data-desc="Long and sleek, caramel point mask, sapphire eyes." style="--c:#E7DAC4;--bg:#EEF3F9"><span class="sr">Siamese</span></button>
+              <button class="swatch pet-skin-chip" type="button" role="radio" aria-checked="false" data-skin-id="black" data-name="Classic Black Cat" data-desc="The original. Neon chartreuse eyes and a soft white sticker outline." style="--c:#1E1C22;--bg:#F0F4E6"><span class="sr">Classic Black Cat</span></button>
+              <button class="swatch pet-skin-chip" type="button" role="radio" aria-checked="false" data-skin-id="orangeWhite" data-name="Orange & White" data-desc="Warm ginger back stripes, white belly and mittens, amber eyes." style="--c:#DE9A58;--bg:#FBF1E7"><span class="sr">Orange & White</span></button>
+              <button class="swatch pet-skin-chip" type="button" role="radio" aria-checked="false" data-skin-id="mackerel-tabby" data-name="Brown Tabby" data-desc="Warm brown mackerel stripes, feathered white bib, olive-gold eyes." style="--c:#B8A081;--bg:#F4F1EA"><span class="sr">Brown Tabby</span></button>
+              <button class="swatch pet-skin-chip" type="button" role="radio" aria-checked="false" data-skin-id="xiao-douni" data-name="Xiao Douni" data-desc="A community skin with its own comic-style renderer." style="--c:#F6EFE6;--bg:#FBF5EE"><span class="sr">Xiao Douni</span></button>
+              <button class="swatch pet-skin-chip" type="button" role="radio" aria-checked="false" data-skin-id="dazed-cat" data-name="Dazed Palico" data-desc="A community skin with its own dazed renderer." style="--c:#555F9B;--bg:#EEEFF8"><span class="sr">Dazed Palico</span></button>
+            </div>
+            <div class="skin-links">
+              <a class="link-more" href="https://workshop.kurocat.cc/#workshop" target="_blank" rel="noopener">Turn a photo of your own cat into a skin<svg class="i i-xs" aria-hidden="true"><use href="#i-out" /></svg></a>
+              <a class="link-more" href="https://workshop.kurocat.cc/#plaza" target="_blank" rel="noopener">Browse the community plaza<svg class="i i-xs" aria-hidden="true"><use href="#i-out" /></svg></a>
             </div>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- 8. FAQ SECTION (#faq — synced 1:1 with FAQPage JSON-LD) -->
-    <section class="section section-oatmeal section-divider" id="faq">
+    <!-- Open source -->
+    <section class="open" id="open">
       <div class="wrap">
-        <div class="faq-layout">
-          <div class="section-head reveal">
-            <div class="eyebrow caption-3"><span class="eyebrow-dot" aria-hidden="true"></span><span data-i18n="faq_eyebrow">FAQ</span></div>
-            <h2 class="heading-2" data-i18n="faq_h2">Common questions answered clearly</h2>
-            <p class="body-3" data-i18n="faq_sub">Privacy, Bongo Cat comparison, OBS setup, and OS permissions. Need help with something else? Open a GitHub Issue.</p>
-            <div class="panel-actions">
-              <a class="btn btn-secondary button-sm" href="https://github.com/chanke17/KuroCat/issues" target="_blank" rel="noopener">
-                <span data-i18n="faq_issue">Open GitHub Issue</span>
-                <svg class="icon icon-sm" aria-hidden="true"><use href="#ph-arrow-up-right" /></svg>
-              </a>
-              <a class="btn btn-ghost button-sm" href="https://kurocat-download.app.workbuddy.host/?sharecode=JVAABIVZ7L#qa-from-comments" target="_blank" rel="noopener">
-                <span data-i18n="faq_xhs">Community 10 Q&A</span>
-              </a>
+        <h2 class="sec-h">Fully open source. Come raise this cat with us.</h2>
+        <p class="sec-sub">All three native codebases are public, and every installer is built by GitHub Actions. Issues, pull requests and skin submissions are all welcome.</p>
+        <div class="repo">
+          <div class="repo-main">
+            <svg class="i repo-mark" aria-hidden="true"><use href="#i-github" /></svg>
+            <div>
+              <p class="repo-name">chanke17 / KuroCat</p>
+              <p class="repo-meta"><span>MIT License</span><span><svg class="i i-xs" aria-hidden="true"><use href="#i-star" /></svg> <b data-gh-stars>—</b></span><span>Forks <b data-gh-forks>—</b></span></p>
             </div>
           </div>
+          <a class="btn btn-dark btn-m" href="https://github.com/chanke17/KuroCat" target="_blank" rel="noopener">
+            <svg class="i" aria-hidden="true"><use href="#i-star" /></svg><span>Star on GitHub</span>
+          </a>
+        </div>
+        <ul class="eco">
+          <li>
+            <a href="https://workshop.kurocat.cc/" target="_blank" rel="noopener">
+              <span class="eco-t">Skin Workshop & Plaza</span>
+              <span class="eco-d">Sample colors from a photo, draw coat patterns, add accessories, then drag the exported .kurocat onto your cat.</span>
+              <svg class="i eco-go" aria-hidden="true"><use href="#i-out" /></svg>
+            </a>
+          </li>
+          <li>
+            <a href="https://github.com/chanke17/KuroCat/tree/main/mcp" target="_blank" rel="noopener">
+              <span class="eco-t">KuroCat MCP Server</span>
+              <span class="eco-d">A zero-dependency MCP server so AI assistants like Claude and Cursor can design and install skins for you.</span>
+              <svg class="i eco-go" aria-hidden="true"><use href="#i-out" /></svg>
+            </a>
+          </li>
+          <li>
+            <a href="https://github.com/chanke17/KuroCat/blob/main/docs/skin-format.md" target="_blank" rel="noopener">
+              <span class="eco-t">.kurocat skin format spec</span>
+              <span class="eco-d">Every field, the coordinate system and coat regions, readable for developers and artists alike.</span>
+              <svg class="i eco-go" aria-hidden="true"><use href="#i-out" /></svg>
+            </a>
+          </li>
+          <li>
+            <a href="https://github.com/chanke17/KuroCat-Workshop" target="_blank" rel="noopener">
+              <span class="eco-t">Submit to the community plaza</span>
+              <span class="eco-d">Open a pull request on KuroCat-Workshop; once merged, everyone can download your skin or keyboard in one click.</span>
+              <svg class="i eco-go" aria-hidden="true"><use href="#i-out" /></svg>
+            </a>
+          </li>
+        </ul>
+      </div>
+    </section>
 
-          <div class="faq-list reveal">
-            <details class="faq-item" open>
-              <summary class="title-3"><span data-i18n="q1">Does KuroCat record or upload my keystrokes?</span><svg class="icon faq-chevron" aria-hidden="true"><use href="#ph-caret-down" /></svg></summary>
-              <div class="faq-answer body-6"><p data-i18n="a1">No. Every keyboard and mouse event stays strictly in local memory to drive animations and counters. Nothing is logged to disk or uploaded. The entire codebase is MIT open source for public inspection.</p></div>
+    <!-- Download -->
+    <section class="download" id="download">
+      <div class="wrap">
+        <h2 class="sec-h">Pick your system. It’s free.</h2>
+        <p class="sec-sub">Download from the fast mirror or from GitHub Releases. Every installer is built by GitHub Actions and can be verified with SHA-256.</p>
+
+        <div class="dl-grid">
+          <article class="dl-col" data-os="mac">
+            <svg class="i i-plat" aria-hidden="true"><use href="#i-apple" /></svg>
+            <h3>macOS Universal</h3>
+            <p class="dl-req">Apple silicon & Intel · macOS 11 or later</p>
+            <p class="dl-file"><span>KuroCat-macOS-universal.zip</span><span>1018 KB</span></p>
+            <a class="btn btn-blue btn-m dl-main" href="https://kurocat-download.app.workbuddy.host/downloads/KuroCat-macOS-universal.zip?sharecode=JVAABIVZ7L" target="_blank" rel="noopener"><svg class="i" aria-hidden="true"><use href="#i-download" /></svg><span>Fast mirror download</span></a>
+            <a class="link-more" href="https://github.com/chanke17/KuroCat/releases/download/v1.4.5/KuroCat-macOS-universal.zip" target="_blank" rel="noopener">Download from GitHub<svg class="i i-xs" aria-hidden="true"><use href="#i-out" /></svg></a>
+            <details class="sha">
+              <summary>SHA-256<svg class="i i-xs" aria-hidden="true"><use href="#i-down" /></svg></summary>
+              <div class="sha-body"><code>c99b6cc588bea70dd9e2bd63137491687b825c430c98dd09a243fc98c9cc44fb</code><button class="copy" type="button" data-copy="c99b6cc588bea70dd9e2bd63137491687b825c430c98dd09a243fc98c9cc44fb" aria-label="Copy SHA-256 checksum"><svg class="i i-xs" aria-hidden="true"><use href="#i-copy" /></svg></button></div>
             </details>
-            <details class="faq-item">
-              <summary class="title-3"><span data-i18n="q2">How is KuroCat different from classic Bongo Cat?</span><svg class="icon faq-chevron" aria-hidden="true"><use href="#ph-caret-down" /></svg></summary>
-              <div class="faq-answer body-6"><p data-i18n="a2">KuroCat is natively built in Swift, Win32 C++, and GTK3 Cairo (802 KB on Windows) across macOS, Windows, Linux, and UOS, adding 2.5D head tracking, hunting eyes, graphics tablet support, OBS transparent/green modes, 2D scruff drag physics, and an online Skin Workshop.</p></div>
+            <p class="dl-note">After the first launch, enable KuroCat in System Settings → Privacy & Security → Input Monitoring, then restart it from the menu bar.</p>
+          </article>
+
+          <article class="dl-col" data-os="win">
+            <svg class="i i-plat" aria-hidden="true"><use href="#i-windows" /></svg>
+            <h3>Windows x64</h3>
+            <p class="dl-req">Windows 7 SP1 to 11 · single portable exe</p>
+            <p class="dl-file"><span>KuroCat-Windows-x64.exe</span><span>850 KB</span></p>
+            <a class="btn btn-blue btn-m dl-main" href="https://kurocat-download.app.workbuddy.host/downloads/KuroCat-Windows-x64.exe?sharecode=JVAABIVZ7L" target="_blank" rel="noopener"><svg class="i" aria-hidden="true"><use href="#i-download" /></svg><span>Fast mirror download</span></a>
+            <a class="link-more" href="https://github.com/chanke17/KuroCat/releases/download/v1.4.5/KuroCat-Windows-x64.exe" target="_blank" rel="noopener">Download from GitHub<svg class="i i-xs" aria-hidden="true"><use href="#i-out" /></svg></a>
+            <details class="sha">
+              <summary>SHA-256<svg class="i i-xs" aria-hidden="true"><use href="#i-down" /></svg></summary>
+              <div class="sha-body"><code>c029327f25efe9a1c060a2ceb6c063ffecdc3d9c6c8c2fa5ce5e7e9324ba404b</code><button class="copy" type="button" data-copy="c029327f25efe9a1c060a2ceb6c063ffecdc3d9c6c8c2fa5ce5e7e9324ba404b" aria-label="Copy SHA-256 checksum"><svg class="i i-xs" aria-hidden="true"><use href="#i-copy" /></svg></button></div>
             </details>
-            <details class="faq-item">
-              <summary class="title-3"><span data-i18n="q3">How do I add KuroCat to OBS Studio or streaming apps?</span><svg class="icon faq-chevron" aria-hidden="true"><use href="#ph-caret-down" /></svg></summary>
-              <div class="faq-answer body-6"><p data-i18n="a3">Right click the cat or tray icon, open Settings, and enable OBS Transparent Window Capture or OBS Green Screen (#00FF00), then add a Window Capture source in OBS. Fullscreen auto hide pauses automatically during OBS capture.</p></div>
-            </details>
-            <details class="faq-item">
-              <summary class="title-3"><span data-i18n="q4">How do I open Settings after enabling full mouse click through?</span><svg class="icon faq-chevron" aria-hidden="true"><use href="#ph-caret-down" /></svg></summary>
-              <div class="faq-answer body-6"><p data-i18n="a4">Click the KuroCat icon in the macOS menu bar or Windows / Linux system tray anytime. You can also hold Option on macOS or press Ctrl + Alt + Shift + P on Windows to toggle menu access.</p></div>
-            </details>
-            <details class="faq-item">
-              <summary class="title-3"><span data-i18n="q5">macOS says unverified developer or keyboard does not respond?</span><svg class="icon faq-chevron" aria-hidden="true"><use href="#ph-caret-down" /></svg></summary>
-              <div class="faq-answer body-6"><p data-i18n="a5">Right click KuroCat.app and pick Open on first run. Then check KuroCat under System Settings → Privacy & Security → Input Monitoring and restart it from the menu bar.</p></div>
-            </details>
-            <details class="faq-item">
-              <summary class="title-3"><span data-i18n="q6">Is the Windows SmartScreen prompt normal?</span><svg class="icon faq-chevron" aria-hidden="true"><use href="#ph-caret-down" /></svg></summary>
-              <div class="faq-answer body-6"><p data-i18n="a6">Yes. Open source indie apps without a paid commercial signing certificate can trigger SmartScreen on new releases. Compare the SHA 256 checksum with GitHub Releases, then click More info → Run anyway.</p></div>
-            </details>
-            <details class="faq-item">
-              <summary class="title-3"><span data-i18n="q7">Does it work on UnionTech UOS and Kylin Linux?</span><svg class="icon faq-chevron" aria-hidden="true"><use href="#ph-caret-down" /></svg></summary>
-              <div class="faq-answer body-6"><p data-i18n="a7">Yes. Linux packages target glibc 2.28 (Debian 10) for both x86_64 and ARM64, supporting UOS 20 and Kylin V10 with both .deb and password free tar.gz installers.</p></div>
-            </details>
-            <details class="faq-item">
-              <summary class="title-3"><span data-i18n="q8">How do I turn my own cat into a custom skin?</span><svg class="icon faq-chevron" aria-hidden="true"><use href="#ph-caret-down" /></svg></summary>
-              <div class="faq-answer body-6"><p data-i18n="a8">Open the KuroCat Skin Workshop in your browser to analyze a cat photo, draw bezier coat regions, add 2.5D sticker accessories, export .kurocat, and drag it right onto your desktop cat.</p></div>
-            </details>
-          </div>
+            <p class="dl-note">If SmartScreen warns about an unrecognized app, check the SHA-256 and choose Run anyway. If a game or WPS runs as administrator, start KuroCat as administrator too.</p>
+          </article>
+
+          <article class="dl-col" data-os="linux">
+            <svg class="i i-plat" aria-hidden="true"><use href="#i-linux" /></svg>
+            <h3>Linux · UOS</h3>
+            <p class="dl-req">Debian 10 baseline (glibc 2.28) · .deb or no-sudo installer</p>
+            <div class="arch" role="tablist" aria-label="Choose CPU architecture">
+              <button type="button" role="tab" aria-selected="true" data-arch="amd">x86_64</button>
+              <button type="button" role="tab" aria-selected="false" data-arch="arm">ARM64</button>
+            </div>
+            <div class="arch-panel" data-arch-panel="amd">
+              <a class="btn btn-blue btn-m dl-main" href="https://kurocat-download.app.workbuddy.host/downloads/KuroCat-Linux-amd64.deb?sharecode=JVAABIVZ7L" target="_blank" rel="noopener"><svg class="i" aria-hidden="true"><use href="#i-download" /></svg><span>.deb · 222 KB</span></a>
+              <a class="btn btn-grey btn-m" href="https://kurocat-download.app.workbuddy.host/downloads/KuroCat-Linux-x86_64.tar.gz?sharecode=JVAABIVZ7L" target="_blank" rel="noopener"><span>No-sudo installer · 270 KB</span></a>
+              <details class="sha">
+                <summary>SHA-256<svg class="i i-xs" aria-hidden="true"><use href="#i-down" /></svg></summary>
+                <div class="sha-body"><small>.deb</small><code>db00d9c9d79242ca03683288a057acf2f97773705e763ebb7e5bce7a552a4e0c</code><button class="copy" type="button" data-copy="db00d9c9d79242ca03683288a057acf2f97773705e763ebb7e5bce7a552a4e0c" aria-label="Copy SHA-256 checksum"><svg class="i i-xs" aria-hidden="true"><use href="#i-copy" /></svg></button></div>
+                <div class="sha-body"><small>.tar.gz</small><code>bb9f46db412393e72d36d46ef515652cf4acc0cfeca4f47b541b72342e551ef9</code><button class="copy" type="button" data-copy="bb9f46db412393e72d36d46ef515652cf4acc0cfeca4f47b541b72342e551ef9" aria-label="Copy SHA-256 checksum"><svg class="i i-xs" aria-hidden="true"><use href="#i-copy" /></svg></button></div>
+              </details>
+            </div>
+            <div class="arch-panel" data-arch-panel="arm" hidden>
+              <a class="btn btn-blue btn-m dl-main" href="https://kurocat-download.app.workbuddy.host/downloads/KuroCat-Linux-arm64.deb?sharecode=JVAABIVZ7L" target="_blank" rel="noopener"><svg class="i" aria-hidden="true"><use href="#i-download" /></svg><span>.deb · 190 KB</span></a>
+              <a class="btn btn-grey btn-m" href="https://kurocat-download.app.workbuddy.host/downloads/KuroCat-Linux-arm64.tar.gz?sharecode=JVAABIVZ7L" target="_blank" rel="noopener"><span>No-sudo installer · 246 KB</span></a>
+              <details class="sha">
+                <summary>SHA-256<svg class="i i-xs" aria-hidden="true"><use href="#i-down" /></svg></summary>
+                <div class="sha-body"><small>.deb</small><code>d501fc0ff98456b4a8a7889835da8c5045e39714c8720eafda598194447aa341</code><button class="copy" type="button" data-copy="d501fc0ff98456b4a8a7889835da8c5045e39714c8720eafda598194447aa341" aria-label="Copy SHA-256 checksum"><svg class="i i-xs" aria-hidden="true"><use href="#i-copy" /></svg></button></div>
+                <div class="sha-body"><small>.tar.gz</small><code>e76efffc36a6148fa07767ca6f8d05017b3507104751d3bd9ee46e9f6664ac67</code><button class="copy" type="button" data-copy="e76efffc36a6148fa07767ca6f8d05017b3507104751d3bd9ee46e9f6664ac67" aria-label="Copy SHA-256 checksum"><svg class="i i-xs" aria-hidden="true"><use href="#i-copy" /></svg></button></div>
+              </details>
+            </div>
+            <a class="link-more" href="https://github.com/chanke17/KuroCat/releases/tag/v1.4.5" target="_blank" rel="noopener">All files on GitHub<svg class="i i-xs" aria-hidden="true"><use href="#i-out" /></svg></a>
+            <p class="dl-note">Extract the tar.gz and run bash install.sh to install into your home directory. On pure Wayland, run sudo usermod -aG input $USER once and log in again.</p>
+          </article>
+        </div>
+
+        <p class="dl-foot">
+          <span>Current version v1.4.5 · released November 25, 2026</span>
+          <a class="link-more" href="https://kurocat-download.app.workbuddy.host/?sharecode=JVAABIVZ7L" target="_blank" rel="noopener">Mirror download page<svg class="i i-xs" aria-hidden="true"><use href="#i-out" /></svg></a>
+          <a class="link-more" href="https://github.com/chanke17/KuroCat/releases" target="_blank" rel="noopener">Previous versions<svg class="i i-xs" aria-hidden="true"><use href="#i-out" /></svg></a>
+        </p>
+      </div>
+    </section>
+
+    <!-- FAQ -->
+    <section class="faq" id="faq">
+      <div class="wrap faq-wrap">
+        <div class="faq-side">
+          <h2 class="sec-h">Questions.</h2>
+          <p class="sec-sub">Privacy, streaming, permissions and Linux installs. Still stuck? Open an issue on GitHub.</p>
+          <a class="link-more" href="https://github.com/chanke17/KuroCat/issues" target="_blank" rel="noopener">Ask on GitHub<svg class="i i-xs" aria-hidden="true"><use href="#i-out" /></svg></a>
+        </div>
+        <div class="faq-list">
+          <details class="qa" open>
+            <summary><span>Does KuroCat record or upload what I type?</span><svg class="i i-xs" aria-hidden="true"><use href="#i-down" /></svg></summary>
+            <p>No. Keyboard and mouse signals stay in local memory and only drive the animation and counters. Nothing is logged and no keystrokes are uploaded. The only network request is the update check against the official download site, and the full source is MIT licensed for anyone to audit.</p>
+          </details>
+          <details class="qa">
+            <summary><span>How is KuroCat different from classic Bongo Cat?</span><svg class="i i-xs" aria-hidden="true"><use href="#i-down" /></svg></summary>
+            <p>KuroCat is written natively in Swift, Win32 C++ and GTK3 Cairo, about 850 KB as a single Windows exe, and runs on macOS, Windows, Linux and UOS. Beyond NKRO key tapping it adds 2.5D head tracking, hunting eyes, a graphics-tablet pen mode, OBS transparent and green-screen modes, scruff dragging with inertia, and an online Skin Workshop.</p>
+          </details>
+          <details class="qa">
+            <summary><span>How do I add KuroCat to OBS, Douyin Live Companion or Bilibili Live?</span><svg class="i i-xs" aria-hidden="true"><use href="#i-down" /></svg></summary>
+            <p>Right-click the cat or the tray icon, open Settings and turn on OBS Transparent Window Capture or OBS Green Screen (#00FF00), then add a window capture source in your streaming app. Fullscreen auto-hide pauses automatically in OBS mode, so the cat never disappears.</p>
+          </details>
+          <details class="qa">
+            <summary><span>How do I open Settings after turning on full click-through?</span><svg class="i i-xs" aria-hidden="true"><use href="#i-down" /></svg></summary>
+            <p>Transparent areas already let clicks through. With full click-through on, click the KuroCat icon in the macOS menu bar or the Windows / Linux tray. You can also hold Option on macOS or press Ctrl + Alt + Shift + P on Windows.</p>
+          </details>
+          <details class="qa">
+            <summary><span>macOS says it can’t open the app, or typing does nothing?</span><svg class="i i-xs" aria-hidden="true"><use href="#i-down" /></svg></summary>
+            <p>On first launch, right-click KuroCat.app, choose Open and confirm. Then enable KuroCat in System Settings → Privacy &amp; Security → Input Monitoring and restart it from the menu bar.</p>
+          </details>
+          <details class="qa">
+            <summary><span>Is the Windows SmartScreen warning safe to ignore?</span><svg class="i i-xs" aria-hidden="true"><use href="#i-down" /></svg></summary>
+            <p>New releases of indie open-source apps often trigger SmartScreen as an uncommon download. Check that the SHA-256 on this page matches the GitHub release, then choose More info → Run anyway, or build it yourself from source.</p>
+          </details>
+          <details class="qa">
+            <summary><span>Does it run on UnionTech UOS and Kylin?</span><svg class="i i-xs" aria-hidden="true"><use href="#i-down" /></svg></summary>
+            <p>Yes. Linux builds target Debian 10 (glibc 2.28), which covers UOS 20 and Kylin V10, on both x86_64 and ARM64. If you can’t enter an admin password, use the no-sudo tar.gz installer.</p>
+          </details>
+          <details class="qa">
+            <summary><span>How do I turn my own cat into a skin?</span><svg class="i i-xs" aria-hidden="true"><use href="#i-down" /></svg></summary>
+            <p>Open the KuroCat Skin Workshop, upload a photo to sample its coat colors, draw pattern regions with the pen tool and add accessory stickers. Drag the exported .kurocat file onto your desktop cat, or submit it to the community plaza.</p>
+          </details>
         </div>
       </div>
     </section>
 
-    <!-- 9. FINAL CTA -->
-    <section class="section-tight section-divider">
-      <div class="wrap">
-        <div class="cta-card reveal">
-          <div>
-            <h2 class="heading-3" data-i18n="cta_h2">Bring your keyboard cat home today</h2>
-            <p class="body-3" data-i18n="cta_sub">Free, MIT open source, native speed, and zero keystrokes uploaded.</p>
-          </div>
-          <div class="panel-actions">
-            <a class="btn btn-on-dark btn-hero button-md" href="https://kurocat-download.app.workbuddy.host/?sharecode=JVAABIVZ7L" target="_blank" rel="noopener">
-              <svg class="icon" aria-hidden="true"><use href="#ph-download" /></svg>
-              <span data-i18n="cta_btn">Open Fast Download Mirror</span>
-            </a>
-            <a class="btn btn-on-dark-ghost btn-hero button-md" href="https://workshop.kurocat.cc/" target="_blank" rel="noopener">
-              <span data-i18n="cta_ws">Open Skin Workshop</span>
-            </a>
-          </div>
+    <!-- Closing -->
+    <section class="closing">
+      <div class="wrap closing-in">
+        <svg class="closing-mark" aria-hidden="true"><use href="#i-cat" /></svg>
+        <h2 class="closing-h">Now take it home.</h2>
+        <p class="sec-sub">Free and open source, under 1 MB, on your keyboard in seconds.</p>
+        <div class="closing-actions">
+          <a class="btn btn-blue btn-l" href="#download"><svg class="i" aria-hidden="true"><use href="#i-download" /></svg><span>Download KuroCat free</span></a>
+          <a class="link-more" href="https://github.com/chanke17/KuroCat" target="_blank" rel="noopener">View the source on GitHub<svg class="i i-xs" aria-hidden="true"><use href="#i-out" /></svg></a>
         </div>
       </div>
     </section>
   </main>
 
-  <!-- Ship-Ready Footer (B10: Privacy, License, Nav Map, Back to Top) -->
-  <footer class="site-footer" id="privacy">
+  <footer class="foot" id="privacy">
     <div class="wrap">
-      <div class="footer-grid">
-        <div class="footer-brand">
-          <a class="brand-link" href="#top" aria-label="Back to top">
-            <span class="brand-mark" aria-hidden="true">
-              <span class="brand-eye"></span>
-              <span class="brand-eye"></span>
-            </span>
-            <span class="title-3">KuroCat</span>
-          </a>
-          <p class="caption-2" data-i18n="foot_desc">Native cross platform open source desktop cat. All keyboard and mouse signals stay strictly in local memory.</p>
-        </div>
-
-        <div class="footer-col">
-          <h4 class="title-4" data-i18n="foot_c1">Destinations</h4>
-          <ul class="caption-2">
-            <li><a href="https://kurocat-download.app.workbuddy.host/?sharecode=JVAABIVZ7L" target="_blank" rel="noopener" data-i18n="foot_cn">Fast Download Mirror</a></li>
-            <li><a href="https://workshop.kurocat.cc/#workshop" target="_blank" rel="noopener" data-i18n="hub_2_c1">Skin Editor</a></li>
-            <li><a href="https://workshop.kurocat.cc/#plaza" target="_blank" rel="noopener" data-i18n="hub_2_c2">Skin Plaza</a></li>
-            <li><a href="https://workshop.kurocat.cc/#keyboards" target="_blank" rel="noopener" data-i18n="hub_2_c4">Keyboards</a></li>
-          </ul>
-        </div>
-
-        <div class="footer-col">
-          <h4 class="title-4" data-i18n="foot_c2">Open Source & Docs</h4>
-          <ul class="caption-2">
-            <li><a href="/obs-guide/">OBS &amp; Permissions Guide (ZH)</a></li>
-            <li><a href="/" hreflang="zh-CN" lang="zh-CN">中文官网 (Chinese)</a></li>
-            <li><a href="https://github.com/chanke17/KuroCat" target="_blank" rel="noopener">GitHub Repository</a></li>
+      <p class="foot-privacy">Privacy promise: KuroCat uses keyboard and mouse signals only in local memory to animate the cat and count keys. It never records what you type, writes no logs and shows no ads, and it goes online only to check for updates.</p>
+      <div class="foot-grid">
+        <div>
+          <h3>Download</h3>
+          <ul>
+            <li><a href="#download">Download by system</a></li>
+            <li><a href="https://kurocat-download.app.workbuddy.host/?sharecode=JVAABIVZ7L" target="_blank" rel="noopener">Fast mirror page</a></li>
             <li><a href="https://github.com/chanke17/KuroCat/releases" target="_blank" rel="noopener">GitHub Releases</a></li>
-            <li><a href="https://github.com/chanke17/KuroCat/blob/main/docs/skin-format.md" target="_blank" rel="noopener">.kurocat Format Spec</a></li>
-            <li><a href="/llms.txt" target="_blank" rel="noopener">llms.txt &amp; AI Knowledge Base</a></li>
           </ul>
         </div>
-
-        <div class="footer-col">
-          <h4 class="title-4" data-i18n="foot_c3">Privacy & Support</h4>
-          <ul class="caption-2">
-            <li><a href="https://github.com/chanke17/KuroCat#privacy-policy" target="_blank" rel="noopener" data-i18n="foot_privacy">Privacy Policy (Zero Data)</a></li>
-            <li><a href="https://github.com/chanke17/KuroCat/blob/main/LICENSE" target="_blank" rel="noopener" data-i18n="foot_license">MIT License Terms</a></li>
-            <li><button type="button" id="openRewardBtn" data-i18n="foot_reward">Buy the Author a Coffee</button></li>
-            <li><a href="#top" data-i18n="foot_top">Back to top ↑</a></li>
+        <div>
+          <h3>Skins</h3>
+          <ul>
+            <li><a href="https://workshop.kurocat.cc/#workshop" target="_blank" rel="noopener">Online Skin Workshop</a></li>
+            <li><a href="https://workshop.kurocat.cc/#plaza" target="_blank" rel="noopener">Community skin plaza</a></li>
+            <li><a href="https://workshop.kurocat.cc/#keyboards" target="_blank" rel="noopener">Keyboard skin plaza</a></li>
+          </ul>
+        </div>
+        <div>
+          <h3>Docs</h3>
+          <ul>
+            <li><a href="/obs-guide/">OBS streaming guide</a></li>
+            <li><a href="https://github.com/chanke17/KuroCat/blob/main/docs/skin-format.md" target="_blank" rel="noopener">.kurocat format spec</a></li>
+            <li><a href="https://github.com/chanke17/KuroCat/tree/main/mcp" target="_blank" rel="noopener">MCP Server</a></li>
+            <li><a href="/llms.txt">llms.txt</a></li>
+          </ul>
+        </div>
+        <div>
+          <h3>Open source & support</h3>
+          <ul>
+            <li><a href="https://github.com/chanke17/KuroCat" target="_blank" rel="noopener">GitHub</a></li>
+            <li><a href="https://github.com/chanke17/KuroCat/issues" target="_blank" rel="noopener">Report an issue</a></li>
+            <li><a href="https://github.com/chanke17/KuroCat/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a></li>
+            <li><button type="button" id="openRewardBtn">Buy the author a coffee</button></li>
           </ul>
         </div>
       </div>
-
-      <div class="footer-bottom caption-5">
-        <span>© 2026 KuroCat · MIT License · Built by chanke17 &amp; community contributors</span>
-        <span data-i18n="foot_note">Privacy promise: no keystroke logging, no ads, no personal telemetry.</span>
+      <div class="foot-bottom">
+        <span>© 2026 KuroCat · MIT License · Built by chanke17 &amp; contributors</span>
+        <a href="/" hreflang="zh-CN" lang="zh-CN">简体中文</a>
       </div>
     </div>
   </footer>
 
-  <!-- WeChat Reward Modal -->
-  <dialog class="modal-dialog" id="rewardDialog" aria-labelledby="rewardTitle">
+  <dialog class="modal" id="rewardDialog" aria-labelledby="rewardTitle">
     <div class="modal-head">
-      <h3 class="title-2" id="rewardTitle" data-i18n="rw_t">Buy the author a coffee</h3>
-      <button class="modal-close" type="button" id="closeRewardBtn" aria-label="Close modal">
-        <svg class="icon icon-sm" aria-hidden="true"><use href="#ph-x" /></svg>
-      </button>
+      <h3 id="rewardTitle">Buy the author a coffee</h3>
+      <button class="modal-x" type="button" id="closeRewardBtn" aria-label="Close"><svg class="i i-xs" aria-hidden="true"><use href="#i-close" /></svg></button>
     </div>
-    <p class="body-6" data-i18n="rw_d">If KuroCat brings joy to your coding, gaming, or drawing sessions, scan via WeChat to support ongoing updates.</p>
-    <div class="modal-qr">
-      <img src="../assets/kurocat_reward.jpg" alt="KuroCat WeChat support QR code" loading="lazy" />
-    </div>
-    <p class="caption-5" data-i18n="rw_f">KuroCat is forever free and MIT open source. Thank you for every bit of support.</p>
+    <p>If KuroCat has kept you company while coding, gaming or drawing, you can support future updates by scanning with WeChat.</p>
+    <img src="../assets/kurocat_reward.jpg" alt="WeChat tip QR code for the KuroCat author" width="560" height="560" loading="lazy" />
+    <p class="modal-foot">KuroCat is free forever and MIT open source. Thank you for every kind gesture.</p>
   </dialog>
 
-  <!-- Floating Transparent Web Desktop Pet Dock -->
-  <div class="floating-pet-dock" id="floatingPetDock" aria-label="Floating web desktop pet">
-    <div class="floating-pet-toolbar">
-      <button class="floating-pet-btn caption-3" type="button" id="floatNextSkinBtn" data-i18n="float_next_skin">Next Skin</button>
-      <button class="floating-pet-btn caption-3" type="button" id="floatDockBtn" data-i18n="pet_dock_back">Dock Back</button>
+  <div class="float-dock" id="floatingPetDock" aria-label="Floating web pet that follows the page">
+    <div class="float-tools">
+      <button type="button" id="floatNextSkinBtn">Next skin</button>
+      <button type="button" id="floatDockBtn">Bring it back</button>
     </div>
-    <div class="floating-pet-stage" id="petFloatMount"></div>
+    <div class="float-stage" id="petFloatMount"></div>
   </div>
 
-  <div class="toast caption-3" id="toast" role="status" aria-live="polite">Copied to clipboard</div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-  <script>window.KUROCAT_ASSET_BASE = "../";</script>
-  <script src="../pet/spec.js?v=20261125c"></script>
-  <script src="../pet/renderer.js?v=20261125c"></script>
-  <script src="../pet/web-pet.js?v=20261125c"></script>
-  <script src="../app.js?v=20261125c"></script>
+  <script>window.KURO_I18N = {"dl_for": "Download for {os}", "os_mac": "macOS", "os_win": "Windows", "os_linux": "Linux", "copied": "SHA-256 copied", "copy_fail": "Copy failed, please select it manually", "float_on": "Let it follow you", "float_off": "Bring it back", "cap_desk": "Type, shake the mouse, or press and drag the cat", "cap_type": "Hold 3 keys for a back foot, 4 for the tail", "cap_hunt": "Shake the mouse fast to trigger hunting eyes", "cap_pet": "Stroke its head with the cursor, or press and drag", "cap_sleep": "zZ… frame rate drops once it is asleep", "cap_obs": "Green-screen mode: key out #00FF00 in your streaming app", "typed_try": "meow meow, hello there", "your_os": "Your system", "kb_mods": {"mac": ["control", "option", "cmd"], "other": ["Ctrl", "Alt", "Win"]}};</script>
+  <script src="../pet/spec.js?v=0ffda88bb2"></script>
+  <script src="../pet/renderer.js?v=0ffda88bb2"></script>
+  <script src="../pet/web-pet.js?v=0ffda88bb2"></script>
+  <script src="../site.js?v=0ffda88bb2" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/gsap.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/ScrollTrigger.min.js" defer></script>
 </body>
 </html>

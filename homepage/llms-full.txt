@@ -7,7 +7,7 @@ Official GitHub Repository: https://github.com/chanke17/KuroCat
 Fast Direct Download Mirror (China): https://kurocat-download.app.workbuddy.host/?sharecode=JVAABIVZ7L
 Author / Maintainer: chanke17 & open-source community contributors
 License: MIT License (100% free and open source)
-Latest Stable Release: v1.4.3 (Updated 2026-11-25)
+Latest Stable Release: v1.4.5 (Updated 2026-11-25)
 
 ---
 
@@ -16,7 +16,7 @@ Latest Stable Release: v1.4.3 (Updated 2026-11-25)
 **KuroCat (`kurocat.cc` / `github.com/chanke17/KuroCat`)** is a 100% native cross-platform open-source desktop cat pet (Bongo Cat alternative) written directly against OS-native APIs (**Swift + CoreGraphics** on macOS, **Win32 C++17 + GDI+** on Windows, **C++17 + GTK3/Cairo** on Linux / UnionTech UOS / Kylin).
 
 Key identifying facts that distinguish `kurocat.cc` (`chanke17/KuroCat`):
-- **Sub-1 MB native binaries with zero browser/WebView runtime**: Windows single portable `.exe` is ~802 KB; macOS Universal binary (Apple Silicon + Intel) is ~944 KB; Linux `.deb` is 175–205 KB (x86_64 & ARM64). Does NOT use Electron, Chromium, or Tauri WebView.
+- **Sub-1 MB native binaries with zero browser/WebView runtime**: Windows single portable `.exe` is ~850 KB; macOS Universal binary (Apple Silicon + Intel) is ~1018 KB; Linux `.deb` is 190–222 KB (x86_64 & ARM64). Does NOT use Electron, Chromium, or Tauri WebView.
 - **Native 2.5D graphics tablet stylus mode**: Automatically switches from mouse to 2.5D stylus pen-holding animation when drawing on Wacom / Huion / XP-Pen graphics tablets.
 - **2.5D spherical head tracking & physics**: Live2D-style spherical projection for head, ears, pupils, and whiskers; fast mouse movement triggers dilated hunting boba eyes; lifting by the scruff triggers 2D pendulum inertia; idle timeout curls the cat into a sleeping cat-ball with automatic FPS throttling.
 - **Domestic Linux OS compatibility**: Compiled against Debian 10 (`glibc 2.28`) for native compatibility on UnionTech UOS 20 (统信 UOS), Kylin V10 (银河麒麟), Deepin, Ubuntu, Debian, Arch, and Fedora (both `x86_64` and `ARM64`, including passwordless user-space `tar.gz` installation via `bash install.sh`).
@@ -25,14 +25,14 @@ Key identifying facts that distinguish `kurocat.cc` (`chanke17/KuroCat`):
 
 ---
 
-## 2. Architecture & Binary Benchmarks (v1.4.3)
+## 2. Architecture & Binary Benchmarks (v1.4.5)
 
 | Platform | Tech Stack | Input Capture Layer | Package & Size | SHA-256 Verification |
 | :--- | :--- | :--- | :--- | :--- |
-| **macOS 11+ (Apple Silicon & Intel)** | Native Swift + CoreGraphics | `IOHIDManager` (HID kernel) + `CGEventTap` | `KuroCat-macOS-universal.zip` (~944 KB) | `85b85ca6c01099a4e80345370d66c9a38dcb8a304cb753a1f3ab3ad43601013e` |
-| **Windows 7 SP1 / 8 / 10 / 11 (x64)** | Native C++17 + Win32 + GDI+ | `Raw Input API (RIDEV_INPUTSINK)` | `KuroCat-Windows-x64.exe` (~802 KB single portable exe) | `a54e4ed722e8905c37cf8f91bb242cc13a26228833006a40626ec85987a12f06` |
-| **Linux / UOS 20 / Kylin V10 (x86_64)** | Native C++17 + GTK3 + Cairo | `XInput2` + kernel `evdev` | `.deb` (205 KB) / `.tar.gz` (249 KB) | Verified on GitHub Releases |
-| **Linux / UOS 20 / Kylin V10 (ARM64)** | Native C++17 + GTK3 + Cairo | `XInput2` + kernel `evdev` | `.deb` (175 KB) / `.tar.gz` (226 KB) | Verified on GitHub Releases |
+| **macOS 11+ (Apple Silicon & Intel)** | Native Swift + CoreGraphics | `IOHIDManager` (HID kernel) + `CGEventTap` | `KuroCat-macOS-universal.zip` (~1018 KB) | `c99b6cc588bea70dd9e2bd63137491687b825c430c98dd09a243fc98c9cc44fb` |
+| **Windows 7 SP1 / 8 / 10 / 11 (x64)** | Native C++17 + Win32 + GDI+ | `Raw Input API (RIDEV_INPUTSINK)` | `KuroCat-Windows-x64.exe` (~850 KB single portable exe) | `c029327f25efe9a1c060a2ceb6c063ffecdc3d9c6c8c2fa5ce5e7e9324ba404b` |
+| **Linux / UOS 20 / Kylin V10 (x86_64)** | Native C++17 + GTK3 + Cairo | `XInput2` + kernel `evdev` | `.deb` (222 KB) / `.tar.gz` (270 KB) | Verified on GitHub Releases |
+| **Linux / UOS 20 / Kylin V10 (ARM64)** | Native C++17 + GTK3 + Cairo | `XInput2` + kernel `evdev` | `.deb` (190 KB) / `.tar.gz` (246 KB) | Verified on GitHub Releases |
 
 ---
 
@@ -80,7 +80,7 @@ Featured free community keyboard themes (`.kurokb`):
 
 | Dimension | KuroCat (`kurocat.cc`) | Classic Bongo Cat | Electron / WebView Desktop Pets |
 | :--- | :--- | :--- | :--- |
-| Native Runtime & Size | Swift / Win32 C++ / GTK3 (~802 KB Win exe) | Community forks vary widely | Bundled browser runtime (tens to 100+ MB) |
+| Native Runtime & Size | Swift / Win32 C++ / GTK3 (~850 KB Win exe) | Community forks vary widely | Bundled browser runtime (tens to 100+ MB) |
 | Operating Systems | macOS 11+, Windows 7–11, Linux, UOS 20, Kylin V10 | Primarily Windows | Cross-platform with higher RAM footprint |
 | Graphics Tablet Mode | Built-in automatic 2.5D stylus pen mode | Requires manual plugins/configs | Rarely supported natively |
 | OBS Streaming | Built-in Transparent Window & `#00FF00` Green Screen | Manual setup | Varies |
@@ -101,4 +101,4 @@ Featured free community keyboard themes (`.kurokb`):
 
 ## 7. 中文核心摘要（面向中文搜索引擎与 AI 问答引用）
 
-**KuroCat（官方网站：https://kurocat.cc/，开源仓库：https://github.com/chanke17/KuroCat）** 是一款 MIT 开源免费的原生跨平台桌面萌猫与 Bongo Cat 替代工具，由 chanke17 与社区开发者共同维护。三端全部采用原生底层开发（macOS Swift、Windows Win32 C++ 单文件仅约 802 KB、Linux/统信 UOS/银河麒麟 GTK3 Cairo），无 Electron 网页壳与高内存负担。支持全键无冲打字、游戏长按 WASD、2.5D 球面转头与捕猎大圆眼、自动识别数位板压感笔、OBS 透明窗口与绿幕（`#00FF00`）直播捕获、全屏自动隐藏与游戏防误触完全穿透。配套免费在线皮肤工坊与社区广场（https://workshop.kurocat.cc/），支持上传猫咪照片一键取色捏猫并拖入 `.kurocat` / `.kurokb` 皮肤（内置小豆泥彩蛋、怪猎呆猫艾露猫、狸花猫等）。所有键鼠事件仅在本地内存驱动动画，不写日志、不上传任何按键数据。
+**KuroCat（官方网站：https://kurocat.cc/，开源仓库：https://github.com/chanke17/KuroCat）** 是一款 MIT 开源免费的原生跨平台桌面萌猫与 Bongo Cat 替代工具，由 chanke17 与社区开发者共同维护。三端全部采用原生底层开发（macOS Swift、Windows Win32 C++ 单文件仅约 850 KB、Linux/统信 UOS/银河麒麟 GTK3 Cairo），无 Electron 网页壳与高内存负担。支持全键无冲打字、游戏长按 WASD、2.5D 球面转头与捕猎大圆眼、自动识别数位板压感笔、OBS 透明窗口与绿幕（`#00FF00`）直播捕获、全屏自动隐藏与游戏防误触完全穿透。配套免费在线皮肤工坊与社区广场（https://workshop.kurocat.cc/），支持上传猫咪照片一键取色捏猫并拖入 `.kurocat` / `.kurokb` 皮肤（内置小豆泥彩蛋、怪猎呆猫艾露猫、狸花猫等）。所有键鼠事件仅在本地内存驱动动画，不写日志、不上传任何按键数据。

@@ -7,6 +7,8 @@
 #include <fstream>
 #include <sstream>
 #include <cstdlib>
+#include <ctime>
+#include <cstdio>
 #include <sys/stat.h>
 #include "KeyMap.hpp"
 #include "InputEngine.hpp"
@@ -41,9 +43,11 @@ struct CatSettings {
     bool footEasterEgg = true;
     bool tailEasterEgg = true;
     bool keyboardMarquee = true;
+    bool levelKeyboard = true;
     int obsCaptureMode = 0; // 0 = off, 1 = OBS transparent window capture, 2 = OBS green screen (#00FF00)
     bool obsHideDesktop = false;
     bool autoHideFullscreen = false;
+    bool autoHeadphonesOnMusic = true;
     int tabletMode = 0; // 0 = auto-detect tablet/stylus, 1 = always tablet, 2 = always mouse
     bool flipHorizontal = false;
     float rotationDeg = 0.0f; // -180..180 degrees
@@ -62,10 +66,12 @@ struct CatSettings {
     CatCoatTheme coatTheme = CatCoatTheme::ClassicBlack;
     KeyboardTheme keyboardTheme = KeyboardTheme::ClassicMilk;
     EyeColorTheme eyeTheme = EyeColorTheme::NeonChartreuse;
+    bool overrideSkinIris = false;
     // Content id of the imported .kurocat skin in use; empty = the built-in coatTheme.
     std::string customSkin;
     // Content id of the imported .kurokb / keyboard.json skin in use; empty = the built-in keyboardTheme.
     std::string customKeyboard;
+    std::string customSkinsDir;
     int posX = -99999;
     int posY = -99999;
 
@@ -96,9 +102,11 @@ struct CatSettings {
                 else if (k == "footEasterEgg") footEasterEgg = (std::stoi(v) != 0);
                 else if (k == "tailEasterEgg") tailEasterEgg = (std::stoi(v) != 0);
                 else if (k == "keyboardMarquee") keyboardMarquee = (std::stoi(v) != 0);
+                else if (k == "levelKeyboard") levelKeyboard = (std::stoi(v) != 0);
                 else if (k == "obsCaptureMode") obsCaptureMode = std::clamp(std::stoi(v), 0, 2);
                 else if (k == "obsHideDesktop") obsHideDesktop = (std::stoi(v) != 0);
                 else if (k == "autoHideFullscreen") autoHideFullscreen = (std::stoi(v) != 0);
+                else if (k == "autoHeadphonesOnMusic") autoHeadphonesOnMusic = (std::stoi(v) != 0);
                 else if (k == "tabletMode") tabletMode = std::clamp(std::stoi(v), 0, 2);
                 else if (k == "flipHorizontal") flipHorizontal = (std::stoi(v) != 0);
                 else if (k == "rotationDeg") rotationDeg = std::clamp(std::stof(v), -180.0f, 180.0f);
@@ -110,16 +118,22 @@ struct CatSettings {
                 else if (k == "fullClickThrough") fullClickThrough = (std::stoi(v) != 0);
                 else if (k == "alwaysOnTop") alwaysOnTop = (std::stoi(v) != 0);
                 else if (k == "highFrameRate") highFrameRate = (std::stoi(v) != 0);
-                else if (k == "scale") scale = std::clamp(std::stof(v), 0.5f, 2.0f);
+                else if (k == "scale") scale = std::clamp(std::stof(v), 0.45f, 2.50f);
                 else if (k == "coatTheme") coatTheme = (CatCoatTheme)std::clamp(std::stoi(v), 0, 3);
                 else if (k == "keyboardTheme") keyboardTheme = (KeyboardTheme)std::clamp(std::stoi(v), 0, 2);
                 else if (k == "eyeTheme") eyeTheme = (EyeColorTheme)std::clamp(std::stoi(v), 0, 5);
+                else if (k == "overrideSkinIris") overrideSkinIris = (std::stoi(v) != 0);
                 else if (k == "customSkin") customSkin = v.size() == 16 && v.find_first_not_of("0123456789abcdef") == std::string::npos ? v : "";
                 else if (k == "customKeyboard") customKeyboard = v.size() == 16 && v.find_first_not_of("0123456789abcdef") == std::string::npos ? v : "";
+                else if (k == "customSkinsDir") {
+                    while (!v.empty() && (v.back() == '\r' || v.back() == ' ' || v.back() == '\t')) v.pop_back();
+                    customSkinsDir = v;
+                }
                 else if (k == "posX") posX = std::stoi(v);
                 else if (k == "posY") posY = std::stoi(v);
             } catch (...) {}
         }
+        KeyboardLayout::levelKeyboard() = levelKeyboard;
     }
 
     void save() const {
@@ -135,9 +149,11 @@ struct CatSettings {
           << "footEasterEgg=" << (footEasterEgg ? 1 : 0) << "\n"
           << "tailEasterEgg=" << (tailEasterEgg ? 1 : 0) << "\n"
           << "keyboardMarquee=" << (keyboardMarquee ? 1 : 0) << "\n"
+          << "levelKeyboard=" << (levelKeyboard ? 1 : 0) << "\n"
           << "obsCaptureMode=" << obsCaptureMode << "\n"
           << "obsHideDesktop=" << (obsHideDesktop ? 1 : 0) << "\n"
           << "autoHideFullscreen=" << (autoHideFullscreen ? 1 : 0) << "\n"
+          << "autoHeadphonesOnMusic=" << (autoHeadphonesOnMusic ? 1 : 0) << "\n"
           << "tabletMode=" << tabletMode << "\n"
           << "flipHorizontal=" << (flipHorizontal ? 1 : 0) << "\n"
           << "rotationDeg=" << rotationDeg << "\n"
@@ -153,11 +169,57 @@ struct CatSettings {
           << "coatTheme=" << (int)coatTheme << "\n"
           << "keyboardTheme=" << (int)keyboardTheme << "\n"
           << "eyeTheme=" << (int)eyeTheme << "\n"
+          << "overrideSkinIris=" << (overrideSkinIris ? 1 : 0) << "\n"
           << "customSkin=" << customSkin << "\n"
-          << "customKeyboard=" << customKeyboard << "\n";
+          << "customKeyboard=" << customKeyboard << "\n"
+          << "customSkinsDir=" << customSkinsDir << "\n";
         if (posX != -99999 && posY != -99999) {
             f << "posX=" << posX << "\nposY=" << posY << "\n";
         }
+    }
+
+    static std::string todayDateString() {
+        std::time_t t = std::time(nullptr);
+        std::tm lt = {};
+        localtime_r(&t, &lt);
+        char buf[16];
+        std::snprintf(buf, sizeof(buf), "%04d-%02d-%02d", lt.tm_year + 1900, lt.tm_mon + 1, lt.tm_mday);
+        return buf;
+    }
+
+    static void loadStats(std::string& day, int& todayKeys, int& petCount) {
+        day = todayDateString();
+        todayKeys = 0;
+        petCount = 0;
+        std::ifstream f(configPath() + "/stats.ini");
+        if (!f.is_open()) return;
+        std::string savedDay;
+        int savedKeys = 0;
+        std::string line;
+        while (std::getline(f, line)) {
+            auto eq = line.find('=');
+            if (eq == std::string::npos) continue;
+            std::string k = line.substr(0, eq);
+            std::string v = line.substr(eq + 1);
+            try {
+                if (k == "statsDay") savedDay = v;
+                else if (k == "todayKeys") savedKeys = std::max(0, std::stoi(v));
+                else if (k == "petCount") petCount = std::max(0, std::stoi(v));
+            } catch (...) {}
+        }
+        if (savedDay == day) todayKeys = savedKeys;
+    }
+
+    static void saveStats(const std::string& day, int todayKeys, int petCount) {
+        std::string dir = configPath();
+        std::string parent = dir.substr(0, dir.find_last_of('/'));
+        mkdir(parent.c_str(), 0755);
+        mkdir(dir.c_str(), 0755);
+        std::ofstream f(dir + "/stats.ini");
+        if (!f.is_open()) return;
+        f << "statsDay=" << day << "\n"
+          << "todayKeys=" << std::max(0, todayKeys) << "\n"
+          << "petCount=" << std::max(0, petCount) << "\n";
     }
 };
 
@@ -247,11 +309,19 @@ public:
     Spring1D angerIntensity{0.0f};
     Spring1D dizzyIntensity{0.0f};
     float dizzyPhase = 0.0f;
+    Spring1D scruffDizzyIntensity{0.0f};
     bool isScruffDragging_ = false;
     float scruffDragDx_ = 0.0f;
     float scruffDragDy_ = 0.0f;
     float scruffDragAccumX_ = 0.0f;
     float scruffDragAccumY_ = 0.0f;
+    float scruffShakeDuration = 0.0f;
+    Pt scruffShakeDir_{0.0f, 0.0f};
+    float scruffShakeLastReversal_ = -100.0f;
+    float scruffDizzyTimer_ = 0.0f;
+    bool scruffStartedHoldingPen = false;
+    Pt scruffPenStartNib{60.0f, 261.0f};
+    float scruffPenStartAngle = -2.45f;
     float fastMouseDuration_ = 0.0f;
     float dizzyTimer_ = 0.0f;
     float fastTypeAccum_ = 0.0f;
@@ -260,6 +330,23 @@ public:
     Spring2D mouseOffset{{0.0f, 0.0f}};
     Spring1D mousePressLeft{0.0f};
     Spring1D mousePressRight{0.0f};
+    Spring1D mousePressMiddle{0.0f};
+
+    static constexpr float StylusBarrelGripDistance = 18.15f;
+    static constexpr float StylusBaseAngle = -2.45f;
+
+    float stylusAngle() const {
+        return StylusBaseAngle + tabletPenTilt.value;
+    }
+
+    Pt stylusPawGrip() const {
+        Pt nib = tabletNib.point();
+        float ang = stylusAngle();
+        return {
+            nib.x + std::cos(ang) * StylusBarrelGripDistance,
+            nib.y + std::sin(ang) * StylusBarrelGripDistance
+        };
+    }
 
     static Pt tabletQuadPoint(float u, float v) {
         constexpr Pt tl = { 18.0f, 235.0f }, tr = { 94.0f, 240.0f };
@@ -290,6 +377,9 @@ public:
     float petBodyIntensity = 0.0f;
     int totalPetSessions = 0;
     float sleepiness = 0.0f;
+    bool isMusicPlaying = false;
+    float musicIntensity = 0.0f;
+    float musicPhase = 0.0f;
     float yawnAmount = 0.0f;
     float yawnTimer_ = 0.0f;
     bool isYawning_ = false;
@@ -431,11 +521,17 @@ public:
                 douniMouseBlend.target = 1.0f;
             }
             if (button == 0) {
+                mousePressLeft.value = std::max(mousePressLeft.value, 0.35f);
                 mousePressLeft.target = 1.0f;
                 leftPaw.y.velocity += 130.0f;
-            } else {
+            } else if (button == 1) {
+                mousePressRight.value = std::max(mousePressRight.value, 0.35f);
                 mousePressRight.target = 1.0f;
                 leftPaw.y.velocity += 110.0f;
+            } else {
+                mousePressMiddle.value = std::max(mousePressMiddle.value, 0.35f);
+                mousePressMiddle.target = 1.0f;
+                leftPaw.y.velocity += 115.0f;
             }
             pupilScale.target = 1.12f;
             earTwitch.velocity -= 2.2f;
@@ -448,7 +544,8 @@ public:
             }
         } else {
             if (button == 0) mousePressLeft.target = 0.0f;
-            else mousePressRight.target = 0.0f;
+            else if (button == 1) mousePressRight.target = 0.0f;
+            else mousePressMiddle.target = 0.0f;
         }
     }
 
@@ -461,6 +558,12 @@ public:
                 scruffDropTimer = 0.0f;
                 scruffDragAccumX_ = 0.0f;
                 scruffDragAccumY_ = 0.0f;
+                scruffShakeDuration = 0.0f;
+                scruffShakeDir_ = { 0.0f, 0.0f };
+                scruffShakeLastReversal_ = -100.0f;
+                scruffStartedHoldingPen = isTabletActive && leftPawOnMouse;
+                scruffPenStartNib = tabletNib.point();
+                scruffPenStartAngle = stylusAngle();
             }
             scruffDragAccumX_ += dragDx;
             scruffDragAccumY_ += dragDy;
@@ -563,7 +666,8 @@ public:
 
     void step(float rawDt, float winX, float winY, float winW, const InputEngine& engine, const CatSettings& settings,
               SkinTypingStyle typingStyle = SkinTypingStyle::Standard,
-              SkinRenderStyle renderStyle = SkinRenderStyle::Standard) {
+              SkinRenderStyle renderStyle = SkinRenderStyle::Standard,
+              bool isClassicBuiltIn = false) {
         float dt = std::min(rawDt, 1.0f / 25.0f);
         time += dt;
 
@@ -684,12 +788,42 @@ public:
             scruffDragAccumY_ = 0.0f;
             scruffDragDx_ = scruffDragDx_ * 0.52f + instDx * 0.85f;
             scruffDragDy_ = scruffDragDy_ * 0.52f + instDy * 0.85f;
+
+            float shakeSpeed = std::hypot(instDx, instDy);
+            if (shakeSpeed > 9.0f) {
+                float dirDot = instDx * scruffShakeDir_.x + instDy * scruffShakeDir_.y;
+                if ((scruffShakeDir_.x != 0.0f || scruffShakeDir_.y != 0.0f) && dirDot < -16.0f) {
+                    scruffShakeLastReversal_ = time;
+                    scruffShakeDir_ = { instDx, instDy };
+                } else if (scruffShakeDir_.x == 0.0f && scruffShakeDir_.y == 0.0f) {
+                    scruffShakeDir_ = { instDx, instDy };
+                }
+            }
+            if (shakeSpeed > 7.5f && (time - scruffShakeLastReversal_) <= 0.48f) {
+                scruffShakeDuration += dt;
+                if (scruffShakeDuration >= 1.2f) {
+                    scruffDizzyTimer_ = 2.5f;
+                    scruffShakeDuration = 0.0f;
+                }
+            } else {
+                scruffShakeDuration = std::max(0.0f, scruffShakeDuration - dt * 1.4f);
+            }
         } else {
             scruffDropTimer = std::max(0.0f, scruffDropTimer - dt);
             if (scruffDrag.value < 0.02f) scruffHoldTime = 0.0f;
+            if (scruffDrag.value < 0.005f) scruffStartedHoldingPen = false;
             scruffDragDx_ *= 0.80f;
             scruffDragDy_ *= 0.80f;
+            scruffShakeDuration = 0.0f;
         }
+        if (scruffDizzyTimer_ > 0.0f) {
+            scruffDizzyTimer_ = std::max(0.0f, scruffDizzyTimer_ - dt);
+            scruffDizzyIntensity.target = 1.0f;
+            if (dizzyTimer_ <= 0.0f && fastMouseDuration_ <= 6.8f) dizzyPhase += dt * 7.5f;
+        } else {
+            scruffDizzyIntensity.target = 0.0f;
+        }
+        scruffDizzyIntensity.step(dt, 90.0f, 15.0f);
         scruffDrag.target = isScruffDragging_ ? 1.0f : 0.0f;
         scruffSwing.target = isScruffDragging_ ? 0.92f * std::tanh(scruffDragDx_ / 18.0f) : 0.0f;
         scruffSwingY.target = isScruffDragging_ ? 0.78f * std::tanh(-scruffDragDy_ / 18.0f) : 0.0f;
@@ -704,6 +838,7 @@ public:
             ? std::min(1.0f, (sleepiness - 0.65f) / 0.30f) : 0.0f;
         lieIntensity.step(dt, 55.0f, 14.0f);
         float lie = std::clamp(lieIntensity.value, 0.0f, 1.0f);
+        float classicSleepBlend = isClassicBuiltIn ? lie * lie * (3.0f - 2.0f * lie) : 0.0f;
 
         // Low-frequency episodic anger: ~3.2s of brisk typing (>= 260 KPM) triggers a brief ~4.2s grumpy burst,
         // followed by a ~28s cooldown so fast typists get occasional cute anger without staying angry non-stop!
@@ -738,8 +873,8 @@ public:
         float anger = std::clamp(angerIntensity.value, 0.0f, 1.0f);
 
         constexpr double tapHoldWindow = 0.14;
-        bool mouseRecent = (now - engine.lastMouseMoveTime < 2.2) || engine.leftMouseDown || engine.rightMouseDown;
-        bool mouseActivelyUsed = (now - engine.lastMouseMoveTime < 0.75) || engine.leftMouseDown || engine.rightMouseDown;
+        bool mouseRecent = (now - engine.lastMouseMoveTime < 2.2) || engine.leftMouseDown || engine.rightMouseDown || engine.otherMouseDown;
+        bool mouseActivelyUsed = (now - engine.lastMouseMoveTime < 0.75) || engine.leftMouseDown || engine.rightMouseDown || engine.otherMouseDown;
 
         std::vector<PhysicalKey> leftCands, rightCands;
         for (PhysicalKey k : orderedKeys) {
@@ -779,20 +914,32 @@ public:
             }
         }
 
-        if (leftKey == PhysicalKey::None && recentLeftKey_ != PhysicalKey::None && now - recentLeftTime_ < tapHoldWindow) {
+        if (recentLeftKey_ != PhysicalKey::None && now - recentLeftTime_ >= tapHoldWindow) {
+            recentLeftKey_ = PhysicalKey::None;
+        }
+        if (recentRightKey_ != PhysicalKey::None && now - recentRightTime_ >= tapHoldWindow) {
+            recentRightKey_ = PhysicalKey::None;
+        }
+        if (leftKey == PhysicalKey::None && recentLeftKey_ != PhysicalKey::None) {
             leftKey = recentLeftKey_;
         }
-        if (rightKey == PhysicalKey::None && recentRightKey_ != PhysicalKey::None && now - recentRightTime_ < tapHoldWindow) {
+        if (rightKey == PhysicalKey::None && recentRightKey_ != PhysicalKey::None) {
             rightKey = recentRightKey_;
         }
 
+        bool hasRot = std::fabs(settings.rotationDeg) > 0.05f;
+        float rotRad = hasRot ? (settings.rotationDeg * 3.14159265f / 180.0f) : 0.0f;
+        float flipSign = settings.flipHorizontal ? -1.0f : 1.0f;
+        float rotVelDx = hasRot ? (engine.mouseVelocity.x * std::cos(-rotRad) - engine.mouseVelocity.y * std::sin(-rotRad)) : engine.mouseVelocity.x;
+        float rotVelDy = hasRot ? (engine.mouseVelocity.x * std::sin(-rotRad) + engine.mouseVelocity.y * std::cos(-rotRad)) : engine.mouseVelocity.y;
         mouseOffset.setTarget({
-            std::clamp(engine.mouseVelocity.x * 0.0045f, -5.5f, 5.5f),
-            std::clamp(engine.mouseVelocity.y * 0.0045f, -4.5f, 4.5f)
+            std::clamp(rotVelDx * 0.0045f * flipSign, -5.5f, 5.5f),
+            std::clamp(rotVelDy * 0.0045f, -4.5f, 4.5f)
         });
         mouseOffset.step(dt, 120.0f, 16.0f);
         mousePressLeft.step(dt, 400.0f, 24.0f);
         mousePressRight.step(dt, 400.0f, 24.0f);
+        mousePressMiddle.step(dt, 400.0f, 24.0f);
 
         Pt liveMouse = { MouseBaseCenter.x + mouseOffset.point().x, MouseBaseCenter.y + mouseOffset.point().y };
 
@@ -810,12 +957,13 @@ public:
                 }
             }
             float nx = std::clamp(engine.lastCursorPos.x / scrW, 0.0f, 1.0f);
+            float mappedNx = settings.flipHorizontal ? (1.0f - nx) : nx;
             float ny = std::clamp(engine.lastCursorPos.y / scrH, 0.0f, 1.0f);
-            tabletNib.setTarget(tabletQuadPoint(0.25f + nx * 0.64f, 0.16f + ny * 0.68f));
+            tabletNib.setTarget(tabletQuadPoint(0.25f + mappedNx * 0.64f, 0.16f + ny * 0.68f));
             tabletNib.step(dt, 240.0f, 20.0f);
             tabletPenPress.target = engine.leftMouseDown ? 0.88f : 0.0f;
             tabletPenPress.step(dt, 360.0f, 22.0f);
-            tabletPenTilt.target = std::clamp(engine.mouseVelocity.x * 0.00018f, -0.22f, 0.22f);
+            tabletPenTilt.target = std::clamp(engine.mouseVelocity.x * 0.00018f * flipSign, -0.22f, 0.22f);
             tabletPenTilt.step(dt, 120.0f, 14.0f);
         } else {
             tabletPenPress.target = 0.0f;
@@ -948,7 +1096,7 @@ public:
             } else if (mouseRecent && sleepiness < 0.3f) {
                 if (isTabletActive) {
                     Pt nib = tabletNib.point();
-                    leftPaw.setTarget({ nib.x + 6.0f, nib.y - 7.0f });
+                    leftPaw.setTarget(stylusPawGrip());
                     if (engine.leftMouseDown) {
                         if (tabletTrail.empty() || std::hypot(nib.x - tabletTrail.back().point.x, nib.y - tabletTrail.back().point.y) >= 1.8f) {
                             tabletTrail.push_back({ nib, 0.0f });
@@ -1037,9 +1185,9 @@ public:
         bodyShiftX.target = std::clamp(targetShiftX, -16.0f, 16.0f);
         bodyTilt.target = std::clamp(targetBodyTilt, -0.12f, 0.12f) + scruffSwing.value * scruff;
         bodySquash.target = 1.0f - hunt * 0.11f + scruff * 0.16f;
-        headOffsetY.target = ((leftPawTyping || rightPawTyping) ? 3.5f : (sleepiness * 5.0f + hunt * 10.5f))
+        headOffsetY.target = ((leftPawTyping || rightPawTyping) ? 3.5f : (sleepiness * 5.0f * (1.0f - classicSleepBlend) + hunt * 10.5f))
             - scruff * 10.0f;
-        earFold.target = std::max(petHeadIntensity * 0.7f, petBodyIntensity * 0.45f) + sleepiness * 0.25f - hunt * 0.18f
+        earFold.target = std::max(petHeadIntensity * 0.7f, petBodyIntensity * 0.45f) + sleepiness * 0.25f * (1.0f - 0.45f * classicSleepBlend) - hunt * 0.18f
             + scruff * 0.35f + anger * 0.45f + dizzy * 0.35f;
         earTwitch.target = 0.0f;
 
@@ -1055,11 +1203,24 @@ public:
         Pt eyeOrigin = { SeatAnchor.x + bodyShiftX.value, 124.0f + headOffsetY.value };
 
         float winScale = std::max(0.2f, winW / CanvasWidth);
-        float headScreenX = winX + eyeOrigin.x * winScale;
-        float headScreenY = winY + eyeOrigin.y * winScale;
+        float headCanvasX = settings.flipHorizontal ? (CanvasWidth - eyeOrigin.x) : eyeOrigin.x;
+        float headCanvasY = eyeOrigin.y;
+        if (hasRot) {
+            float fitScale = 1.0f - std::fabs(std::sin(rotRad)) * 0.14f;
+            float dx = headCanvasX - CanvasWidth * 0.5f;
+            float dy = headCanvasY - CanvasHeight * 0.5f;
+            headCanvasX = CanvasWidth * 0.5f + (dx * std::cos(rotRad) - dy * std::sin(rotRad)) * fitScale;
+            headCanvasY = CanvasHeight * 0.5f + (dx * std::sin(rotRad) + dy * std::cos(rotRad)) * fitScale;
+        }
+        float headScreenX = winX + headCanvasX * winScale;
+        float headScreenY = winY + headCanvasY * winScale;
 
-        float curDx = (engine.lastCursorPos.x - headScreenX) / 290.0f;
-        float curDy = (engine.lastCursorPos.y - headScreenY) / 260.0f;
+        float rawWorldDx = engine.lastCursorPos.x - headScreenX;
+        float rawWorldDy = engine.lastCursorPos.y - headScreenY;
+        float localWorldDx = hasRot ? (rawWorldDx * std::cos(-rotRad) - rawWorldDy * std::sin(-rotRad)) : rawWorldDx;
+        float localWorldDy = hasRot ? (rawWorldDx * std::sin(-rotRad) + rawWorldDy * std::cos(-rotRad)) : rawWorldDy;
+        float curDx = (localWorldDx / 290.0f) * flipSign;
+        float curDy = localWorldDy / 260.0f;
         float curMag = std::hypot(curDx, curDy);
         float clampedCur = std::min(1.0f, curMag);
         float cursorNX = curMag > 0.001f ? (curDx / curMag) * clampedCur : 0.0f;
@@ -1075,12 +1236,27 @@ public:
             lookY = cursorNY * 0.72f + 0.25f;
         }
 
+        float wantMusic = (isMusicPlaying && settings.autoHeadphonesOnMusic) ? 1.0f : 0.0f;
+        float musicRate = wantMusic > musicIntensity ? 3.2f : 2.0f;
+        musicIntensity += (wantMusic - musicIntensity) * std::min(1.0f, dt * musicRate);
+        if (musicIntensity < 0.002f && wantMusic == 0.0f) musicIntensity = 0.0f;
+        if (musicIntensity > 0.005f) {
+            musicPhase += dt * 5.86f;
+            if (musicPhase > 6283.18f) musicPhase -= 6283.18f;
+        }
+        float musicRhythm = musicIntensity * (1.0f - std::min(1.0f, sleepiness * 1.1f)) *
+                            (1.0f - std::min(1.0f, scruffDrag.value * 1.2f)) *
+                            (1.0f - std::min(1.0f, dizzyIntensity.value * 1.4f)) *
+                            (1.0f - std::min(1.0f, angerIntensity.value * 0.8f));
+        float musicNod = std::fabs(std::sin(musicPhase)) * 0.14f * musicRhythm;
+        float musicSway = std::sin(musicPhase * 0.5f) * 0.068f * musicRhythm;
+
         if (sleepiness > 0.45f) {
             headYaw.target = 0.0f;
-            headPitch.target = 0.45f * sleepiness;
+            headPitch.target = 0.45f * sleepiness * (1.0f - 0.35f * classicSleepBlend);
         } else {
             headYaw.target = std::clamp(lookX, -1.0f, 1.0f);
-            headPitch.target = std::clamp(lookY, -1.0f, 1.0f);
+            headPitch.target = std::clamp(lookY + musicNod, -1.0f, 1.0f);
         }
         float headStiff = 88.0f + hunt * 75.0f;
         float headDamp  = 14.5f + hunt * 4.5f;
@@ -1088,7 +1264,7 @@ public:
         headPitch.step(dt, headStiff, headDamp);
 
         if (now - lastPetTime_ > 0.28) {
-            headTilt.target = bodyTilt.target * 0.45f + headYaw.value * (0.11f + hunt * 0.05f) - headYaw.value * headPitch.value * 0.04f + lie * 0.12f;
+            headTilt.target = bodyTilt.target * 0.45f + headYaw.value * (0.11f + hunt * 0.05f) - headYaw.value * headPitch.value * 0.04f + lie * 0.12f * (1.0f - 0.5f * classicSleepBlend) + musicSway;
         }
         headTilt.step(dt, 130.0f, 16.0f);
 

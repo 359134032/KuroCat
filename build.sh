@@ -103,6 +103,7 @@ COMMON_FLAGS=(
     -framework CoreGraphics
     -framework QuartzCore
     -framework IOKit
+    -framework CoreAudio
     -framework ApplicationServices
 )
 

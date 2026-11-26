@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -24,7 +25,7 @@ struct SkinColor {
 };
 
 // Part coordinate spaces (see docs/skin-format.md for the diagram).
-enum class SkinSpace : int { Head = 0, Skull, Body, Tail, LeftEar, RightEar, LeftArm, RightArm };
+enum class SkinSpace : int { Head = 0, Skull, Body, Tail, LeftEar, RightEar, LeftArm, RightArm, HindLeg };
 enum class SkinBuild : int { Standard = 0, Sleek };
 enum class SkinHeadSurface : int { Dome = 0, Plane };
 enum class SkinAnchorPoint : int { HeadTop = 0, Face, Neck, TailTip };
@@ -43,6 +44,8 @@ struct SkinRegion {
     std::vector<SkinPoint> flat;
 };
 
+enum class SkinBrush { Round, Soft, Airbrush, Smudge };
+
 struct SkinMark {
     SkinSpace space = SkinSpace::Body;
     bool stroke = false;
@@ -50,12 +53,24 @@ struct SkinMark {
     SkinColor color;
     std::vector<SkinPoint> points;
     bool clipToBib = false;
+    SkinBrush brush = SkinBrush::Round;
+    float softness = 0.65f;
 };
 
 struct SkinShape {
     SkinBuild build = SkinBuild::Standard;
-    float bodyWidth = 1, headScale = 1, earSize = 1, earBaseWidth = 1, earPointiness = 1;
-    float tailLength = 1, tailThickness = 1, cheekFullness = 1, neckWidth = 1, pawStagger = 1;
+    float bodyWidth = 1, headScale = 1, earSize = 1, earBaseWidth = 1, earPointiness = 1, earSpacing = 1;
+    float tailLength = 1, tailThickness = 1, tailRootY = 0;
+    float cheekFullness = 1, neckWidth = 1, pawStagger = 1;
+    float armSpacing = 1, armLength = 1, armRootY = 0;
+    float hindLegRootX = 0, hindLegRootY = 0, hindLegWidth = 1, hindLegReach = 1;
+};
+
+struct SkinPartGradient {
+    SkinColor from, to;
+    float angle = 90.0f; // degrees (90 = top to bottom)
+    float stop = 0.5f;   // 0.1..0.9 mid-transition fraction matching Workshop
+    bool set = false;
 };
 
 struct SkinDecoration {
@@ -67,7 +82,8 @@ struct SkinDecoration {
 };
 
 struct SkinPalette {
-    SkinColor body, bodyShade, belly, legs, paws, pawPads, earOuter, earInner, nose, mouth, iris,
+    SkinColor body, headBody, bodyShade, belly, legs, paws, hindLeg, hindPaw, pawPads, earOuter, earInner, nose, mouth,
+              iris, irisLeft, irisRight, pupil, pupilLeft, pupilRight,
               tail, tailTip, stripes, whiskers, crease, outline, points, pointsMid;
 };
 
@@ -76,6 +92,7 @@ struct SkinSpec {
     std::string name, author;
     bool builtIn = false;
     SkinPalette palette;
+    std::map<std::string, SkinPartGradient> partGradients;
     std::vector<SkinRegion> regions;
     std::vector<SkinMark> marks;
     SkinShape shape;
@@ -380,11 +397,14 @@ inline bool color(Ctx& c, const Value* v, const std::string& field, SkinColor& o
     return true;
 }
 
-inline bool space(Ctx& c, const Value* v, const std::string& field, SkinSpace& out) {
-    static const char* names[] = {"head", "skull", "body", "tail", "leftEar", "rightEar", "leftArm", "rightArm"};
-    if (!v || v->type != Value::JString) return c.fail(field + " 缺失：必须是 head / skull / body / tail / leftEar / rightEar / leftArm / rightArm 之一");
-    for (int i = 0; i < 8; ++i) if (v->s == names[i]) { out = (SkinSpace)i; return true; }
-    return c.fail(field + " 必须是 head / skull / body / tail / leftEar / rightEar / leftArm / rightArm 之一，现在是 \"" + v->s.substr(0, 24) + "\"");
+// Returns false only when the field is missing/not a string; sets recognized=false for unknown future spaces
+// so newer Workshop skins remain forward-compatible instead of failing import.
+inline bool space(Ctx& c, const Value* v, const std::string& field, SkinSpace& out, bool& recognized) {
+    static const char* names[] = {"head", "skull", "body", "tail", "leftEar", "rightEar", "leftArm", "rightArm", "hindLeg"};
+    if (!v || v->type != Value::JString || v->s.empty()) return c.fail(field + " 缺失：必须是 head / skull / body / tail / leftEar / rightEar / leftArm / rightArm / hindLeg 之一");
+    for (int i = 0; i < 9; ++i) if (v->s == names[i]) { out = (SkinSpace)i; recognized = true; return true; }
+    recognized = false;
+    return true;
 }
 
 inline std::string trimmedUtf8(const std::string& s, size_t maxChars) {
@@ -443,11 +463,13 @@ inline bool SkinSpec::parse(const std::string& bytes, SkinSpec& out, std::string
     if (!pal || pal->type != Value::JObject) { error = "缺少调色板 palette"; return false; }
     struct Slot { const char* key; SkinColor SkinPalette::*member; };
     static const Slot slots[] = {
-        {"body", &SkinPalette::body}, {"bodyShade", &SkinPalette::bodyShade}, {"belly", &SkinPalette::belly},
-        {"legs", &SkinPalette::legs}, {"paws", &SkinPalette::paws}, {"pawPads", &SkinPalette::pawPads},
+        {"body", &SkinPalette::body}, {"headBody", &SkinPalette::headBody}, {"bodyShade", &SkinPalette::bodyShade}, {"belly", &SkinPalette::belly},
+        {"legs", &SkinPalette::legs}, {"paws", &SkinPalette::paws}, {"hindLeg", &SkinPalette::hindLeg},
+        {"hindPaw", &SkinPalette::hindPaw}, {"pawPads", &SkinPalette::pawPads},
         {"earOuter", &SkinPalette::earOuter}, {"earInner", &SkinPalette::earInner}, {"nose", &SkinPalette::nose},
-        {"mouth", &SkinPalette::mouth}, {"iris", &SkinPalette::iris}, {"tail", &SkinPalette::tail},
-        {"tailTip", &SkinPalette::tailTip}, {"stripes", &SkinPalette::stripes}, {"whiskers", &SkinPalette::whiskers},
+        {"mouth", &SkinPalette::mouth}, {"iris", &SkinPalette::iris}, {"irisLeft", &SkinPalette::irisLeft}, {"irisRight", &SkinPalette::irisRight},
+        {"pupil", &SkinPalette::pupil}, {"pupilLeft", &SkinPalette::pupilLeft}, {"pupilRight", &SkinPalette::pupilRight},
+        {"tail", &SkinPalette::tail}, {"tailTip", &SkinPalette::tailTip}, {"stripes", &SkinPalette::stripes}, {"whiskers", &SkinPalette::whiskers},
         {"crease", &SkinPalette::crease}, {"outline", &SkinPalette::outline}, {"points", &SkinPalette::points},
         {"pointsMid", &SkinPalette::pointsMid},
     };
@@ -480,11 +502,36 @@ inline bool SkinSpec::parse(const std::string& bytes, SkinSpec& out, std::string
             !number(c, sh->get("earSize"), "shape.earSize", 0.80, 1.25, h.earSize) ||
             !number(c, sh->get("earBaseWidth"), "shape.earBaseWidth", 0.65, 1.40, h.earBaseWidth) ||
             !number(c, sh->get("earPointiness"), "shape.earPointiness", 0.50, 1.50, h.earPointiness) ||
+            !number(c, sh->get("earSpacing"), "shape.earSpacing", 0.60, 1.50, h.earSpacing) ||
             !number(c, sh->get("tailLength"), "shape.tailLength", 0.70, 1.30, h.tailLength) ||
             !number(c, sh->get("tailThickness"), "shape.tailThickness", 0.70, 1.50, h.tailThickness) ||
+            !number(c, sh->get("tailRootY"), "shape.tailRootY", -30.0, 30.0, h.tailRootY) ||
             !number(c, sh->get("cheekFullness"), "shape.cheekFullness", 0.85, 1.25, h.cheekFullness) ||
             !number(c, sh->get("neckWidth"), "shape.neckWidth", 0.65, 1.40, h.neckWidth) ||
-            !number(c, sh->get("pawStagger"), "shape.pawStagger", 0.0, 1.0, h.pawStagger)) { error = c.error; return false; }
+            !number(c, sh->get("pawStagger"), "shape.pawStagger", 0.0, 1.0, h.pawStagger) ||
+            !number(c, sh->get("armSpacing"), "shape.armSpacing", 0.50, 1.60, h.armSpacing) ||
+            !number(c, sh->get("armLength"), "shape.armLength", 0.60, 1.50, h.armLength) ||
+            !number(c, sh->get("armRootY"), "shape.armRootY", -30.0, 30.0, h.armRootY) ||
+            !number(c, sh->get("hindLegRootX"), "shape.hindLegRootX", -24.0, 24.0, h.hindLegRootX) ||
+            !number(c, sh->get("hindLegRootY"), "shape.hindLegRootY", -24.0, 24.0, h.hindLegRootY) ||
+            !number(c, sh->get("hindLegWidth"), "shape.hindLegWidth", 0.60, 1.60, h.hindLegWidth) ||
+            !number(c, sh->get("hindLegReach"), "shape.hindLegReach", 0.65, 1.50, h.hindLegReach)) { error = c.error; return false; }
+    }
+    if (const Value* pg = root.get("partGradients"); pg && pg->type == Value::JObject) {
+        for (size_t i = 0; i < pg->keys.size(); ++i) {
+            const Value& g = pg->items[i];
+            if (g.type != Value::JObject) continue;
+            SkinPartGradient grad;
+            Ctx gc;
+            const Value* vFrom = g.get("from") ? g.get("from") : g.get("start");
+            const Value* vTo = g.get("to") ? g.get("to") : g.get("end");
+            if (!color(gc, vFrom, "partGradients.from", grad.from) || !color(gc, vTo, "partGradients.to", grad.to)) continue;
+            if (!grad.from.set || !grad.to.set) continue;
+            number(gc, g.get("angle"), "partGradients.angle", -360.0, 360.0, grad.angle);
+            number(gc, g.get("stop"), "partGradients.stop", 0.1, 0.9, grad.stop);
+            grad.set = true;
+            s.partGradients[pg->keys[i]] = grad;
+        }
     }
     if (const Value* hs = root.get("headSurface")) {
         if (hs->type != Value::JString || (hs->s != "dome" && hs->s != "plane")) { error = "headSurface 必须是 \"dome\" 或 \"plane\""; return false; }
@@ -512,7 +559,9 @@ inline bool SkinSpec::parse(const std::string& bytes, SkinSpec& out, std::string
             std::string f = "regions[" + std::to_string(i) + "]";
             if (r.type != Value::JObject) { error = f + " 必须是对象"; return false; }
             SkinRegion reg;
-            if (!space(c, r.get("space"), f + ".space", reg.space)) { error = c.error; return false; }
+            bool knownSpace = false;
+            if (!space(c, r.get("space"), f + ".space", reg.space, knownSpace)) { error = c.error; return false; }
+            if (!knownSpace) continue;
             const Value* fill = r.get("fill");
             if (!fill || fill->type == Value::JNull) { error = f + ".fill 缺失"; return false; }
             if (!color(c, fill, f + ".fill", reg.fill)) { error = c.error; return false; }
@@ -554,7 +603,9 @@ inline bool SkinSpec::parse(const std::string& bytes, SkinSpec& out, std::string
             std::string f = "marks[" + std::to_string(i) + "]";
             if (m.type != Value::JObject) { error = f + " 必须是对象"; return false; }
             SkinMark mark;
-            if (!space(c, m.get("space"), f + ".space", mark.space)) { error = c.error; return false; }
+            bool knownSpace = false;
+            if (!space(c, m.get("space"), f + ".space", mark.space, knownSpace)) { error = c.error; return false; }
+            if (!knownSpace) continue;
             const Value* kind = m.get("kind");
             if (!kind || kind->type != Value::JString || (kind->s != "polygon" && kind->s != "stroke")) { error = f + ".kind 必须是 \"polygon\" 或 \"stroke\""; return false; }
             mark.stroke = kind->s == "stroke";
@@ -580,6 +631,13 @@ inline bool SkinSpec::parse(const std::string& bytes, SkinSpec& out, std::string
                 mark.points.push_back({clampf(pt.items[0].n, -400, 400), clampf(pt.items[1].n, -400, 400)});
             }
             if (const Value* cb = m.get("clipToBib")) mark.clipToBib = (cb->type == Value::JBool && cb->b);
+            if (const Value* br = m.get("brush"); br && br->type == Value::JString) {
+                if (br->s == "soft") mark.brush = SkinBrush::Soft;
+                else if (br->s == "airbrush") mark.brush = SkinBrush::Airbrush;
+                else if (br->s == "smudge") mark.brush = SkinBrush::Smudge;
+                else mark.brush = SkinBrush::Round;
+            }
+            if (!number(c, m.get("softness"), f + ".softness", 0, 1, mark.softness)) { error = c.error; return false; }
             s.marks.push_back(std::move(mark));
         }
     }
@@ -601,10 +659,12 @@ inline bool SkinSpec::parse(const std::string& bytes, SkinSpec& out, std::string
             }
             const Value* anchor = d.get("anchor");
             static const char* anchors[] = {"headTop", "face", "neck", "tailTip"};
+            if (!anchor || anchor->type != Value::JString || anchor->s.empty()) {
+                error = f + ".anchor 必须是 headTop / face / neck / tailTip 之一"; return false;
+            }
             bool ok = false;
-            if (anchor && anchor->type == Value::JString)
-                for (int k = 0; k < 4; ++k) if (anchor->s == anchors[k]) { deco.anchor = (SkinAnchorPoint)k; ok = true; }
-            if (!ok) { error = f + ".anchor 必须是 headTop / face / neck / tailTip 之一"; return false; }
+            for (int k = 0; k < 4; ++k) if (anchor->s == anchors[k]) { deco.anchor = (SkinAnchorPoint)k; ok = true; }
+            if (!ok) continue;
             if (!number(c, d.get("offsetX"), f + ".offsetX", -120, 120, deco.offsetX) || !number(c, d.get("offsetY"), f + ".offsetY", -120, 120, deco.offsetY) ||
                 !number(c, d.get("scale"), f + ".scale", 0.05, 4, deco.scale) || !number(c, d.get("rotation"), f + ".rotation", -180, 180, deco.rotation)) { error = c.error; return false; }
             s.decorations.push_back(std::move(deco));

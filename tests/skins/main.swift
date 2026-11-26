@@ -15,6 +15,7 @@ final class RenderSettings {
  let flipHorizontal = false
  let rotationDeg: CGFloat = 0
  let whiteOutline = true
+ let overrideSkinIris = false
  let isEditMode = false
  let isEnglish = false
  let scale: CGFloat = 1.0
@@ -71,8 +72,13 @@ for coat in [CatCoatTheme.siamese] {
   for state in [0,1,2,4,5,6,7] {
    let current = pixels(frame(coat,eye,state))
    let old = pixels(frame(coat,eye,state,true))
-   // Universal sticker-style white outer outline only extends outside the silhouette; interior opaque pixels must stay unchanged.
+   // Universal sticker-style white outer outline only extends outside the silhouette, and aligned
+   // idle front legs share the typing shoulder root (x: 312...423, y >= 352); all remaining opaque
+   // pixels above the keyboard (head, ears, face, neck, back, tail) must stay unchanged.
    for i in stride(from: 0, to: aboveKeyboard, by: 4) where old[i + 3] == 255 {
+    let px = i / 4
+    let x = px % 720, y = px / 720
+    if (312...423).contains(x) && y >= 352 { continue }
     precondition(abs(Int(current[i]) - Int(old[i])) <= 2 && abs(Int(current[i+1]) - Int(old[i+1])) <= 2 && abs(Int(current[i+2]) - Int(old[i+2])) <= 2 && current[i+3] == 255,
                  "Existing skin interior changed: \(coat), \(eye), \(state) at \(i)")
    }
@@ -303,10 +309,11 @@ rejects(##"{"name":"x","palette":{"body":"#000000"}}"##, "formatVersion")
 rejects(##"{"formatVersion":2,"name":"x","palette":{"body":"#000000"}}"##, "升级")
 rejects(##"{"formatVersion":1,"name":"x","palette":{"body":"pink"}}"##, "palette.body")
 rejects(##"{"formatVersion":1,"name":"x","palette":{}}"##, "palette.body")
-rejects(##"{"formatVersion":1,"name":"x","palette":{"body":"#000000"},"regions":[{"space":"wing","fill":"#FFFFFF","anchors":[]}]}"##, "regions[0].space")
+rejects(##"{"formatVersion":1,"name":"x","palette":{"body":"#000000"},"regions":[{"space":123,"fill":"#FFFFFF","anchors":[]}]}"##, "regions[0].space")
 rejects(##"{"formatVersion":1,"name":"x","palette":{"body":"#000000"},"shape":{"bodyWidth":"fat"}}"##, "shape.bodyWidth")
-let clamped = try! SkinSpec.parse(Data(##"{"formatVersion":1,"name":"  胖  ","palette":{"body":"#112233"},"shape":{"bodyWidth":9},"unknownField":true}"##.utf8))
+let clamped = try! SkinSpec.parse(Data(##"{"formatVersion":1,"name":"  胖  ","palette":{"body":"#112233","hindLeg":"#223344","hindPaw":"#334455"},"shape":{"bodyWidth":9},"unknownField":true,"marks":[{"space":"hindLeg","kind":"polygon","color":"#FFFFFF","points":[[10,0],[50,5],[80,-5]]},{"space":"wing","kind":"polygon","color":"#FFFFFF","points":[[10,0],[50,5],[80,-5]]}]}"##.utf8))
 precondition(clamped.shape.bodyWidth == 1.35 && clamped.name == "胖", "Clamping / trimming / unknown-field rules broken")
+precondition(clamped.marks.count == 1 && clamped.marks[0].space == .hindLeg && clamped.palette.hindLeg != nil && clamped.palette.hindPaw != nil, "hindLeg support / forward-compat unknown-space skip broken")
 print("PASS: 4 .kurocat templates match their built-in coats, curve-regions sample renders, invalid files are rejected in Chinese")
 
 // MARK: - A sleeping cat lying still is not animating

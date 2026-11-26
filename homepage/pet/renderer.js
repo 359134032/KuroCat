@@ -1305,10 +1305,28 @@
       }
 
       // Marks (stripes/polygons)
+      const bodyJawSide = jawSide(false, skin.shape.cheekFullness);
+      const headJawSide = jawSide(true, skin.shape.cheekFullness);
       for (const mk of skin.marks) {
-        if (mk.space === 'body') drawMark(ctx, mk, 'round', bodyMap);
-        else if (mk.space === 'skull') drawMark(ctx, mk, 'round', skullMap);
-        else if (mk.space === 'head') drawMark(ctx, mk, 'round', headMap);
+        if (mk.space === 'body') {
+          ctx.save();
+          drawPolyline(ctx, bodyJawSide, true, headMap);
+          ctx.clip();
+          drawMark(ctx, mk, 'round', bodyMap);
+          ctx.restore();
+        } else if (mk.space === 'skull' || mk.space === 'head') {
+          const skipJawClip = mk.clipToBib || (mk.space === 'head' && mk.kind !== 'stroke' && mk.color && Math.abs(mk.color.r - 242 / 255) < 0.01 && Math.abs(mk.color.g - 238 / 255) < 0.01 && Math.abs(mk.color.b - 228 / 255) < 0.01 && mk.points.some((pt) => Math.abs(pt[0]) > 46));
+          const mapFn = mk.space === 'skull' ? skullMap : headMap;
+          if (skipJawClip) {
+            drawMark(ctx, mk, 'round', mapFn);
+          } else {
+            ctx.save();
+            drawPolyline(ctx, headJawSide, true, headMap);
+            ctx.clip();
+            drawMark(ctx, mk, 'round', mapFn);
+            ctx.restore();
+          }
+        }
       }
 
       ctx.restore();
@@ -1741,7 +1759,7 @@
     };
   }
 
-  function drawLimb(ctx, start, control, end, startW, endW, outlineOnLeft, outlineAlpha, skin, frontPaw = false) {
+  function drawLimb(ctx, start, control, end, startW, endW, outlineOnLeft, outlineAlpha, skin, frontPaw = false, outlineOnly = false) {
     const pal = skin.palette;
     const steps = 14;
     const leftEdge = [], rightEdge = [];
@@ -1774,6 +1792,30 @@
     const pawR = endW * 0.58;
     const lineColor = pal.outline || pal.crease;
 
+    if (outlineOnly) {
+      if (!stateWhiteOutline) return;
+      ctx.save();
+      ctx.strokeStyle = WHITE_OUTLINE_CSS;
+      ctx.lineWidth = WHITE_OUTLINE_W * 2.0;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      ctx.moveTo(leftEdge[0].x, leftEdge[0].y);
+      for (let i = 1; i < leftEdge.length; i++) ctx.lineTo(leftEdge[i].x, leftEdge[i].y);
+      ctx.moveTo(rightEdge[0].x, rightEdge[0].y);
+      for (let i = 1; i < rightEdge.length; i++) ctx.lineTo(rightEdge[i].x, rightEdge[i].y);
+      ctx.stroke();
+      ctx.beginPath();
+      if (isDazedSkin(skin)) {
+        ctx.ellipse(end.x, end.y, pawR * 1.28, pawR * (0.85 + 0.46), 0, 0, Math.PI * 2);
+      } else {
+        ctx.ellipse(end.x, end.y, pawR, pawR * 0.85, 0, 0, Math.PI * 2);
+      }
+      ctx.stroke();
+      ctx.restore();
+      return;
+    }
+
     if (isDazedSkin(skin)) {
       const pawRect = {
         x: end.x - pawR * 1.28,
@@ -1795,24 +1837,6 @@
     }
 
     ctx.save();
-    if (stateWhiteOutline) {
-      ctx.save();
-      ctx.strokeStyle = WHITE_OUTLINE_CSS;
-      ctx.lineWidth = WHITE_OUTLINE_W * 2.0;
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-      const rimStart = isClassicBlackRim(skin) ? 2 : 4;
-      ctx.beginPath();
-      ctx.moveTo(leftEdge[rimStart].x, leftEdge[rimStart].y);
-      for (let i = rimStart + 1; i < leftEdge.length; i++) ctx.lineTo(leftEdge[i].x, leftEdge[i].y);
-      ctx.moveTo(rightEdge[rimStart].x, rightEdge[rimStart].y);
-      for (let i = rimStart + 1; i < rightEdge.length; i++) ctx.lineTo(rightEdge[i].x, rightEdge[i].y);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.ellipse(end.x, end.y, pawR, pawR * 0.85, 0, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.restore();
-    }
     if (pal.points) {
       const mid = pal.pointsMid || pal.points;
       ctx.save();
@@ -1889,15 +1913,16 @@
     ctx.restore();
   }
 
-  function drawIdleFrontLeg(ctx, top, bottom, isLeft, skin) {
+  function drawIdleFrontLeg(ctx, top, bottom, isLeft, skin, outlineOnly = false) {
     if (isDazedSkin(skin)) {
       const sign = isLeft ? -1 : 1;
       const shoulder = { x: top.x + sign * 4.0, y: top.y - 10.0 };
       const elbow = { x: top.x + sign * 11.0, y: top.y + 1.0 };
       const paw = { x: top.x + sign * 10.0, y: top.y + 15.0 };
-      drawLimb(ctx, shoulder, elbow, paw, 19.0, 14.0, !isLeft, 0.78, skin, true);
+      drawLimb(ctx, shoulder, elbow, paw, 19.0, 14.0, !isLeft, 0.78, skin, true, outlineOnly);
       return;
     }
+    if (outlineOnly) return;
     const pal = skin.palette;
     const sign = isLeft ? -1 : 1;
     ctx.save();
@@ -1973,7 +1998,7 @@
     ctx.restore();
   }
 
-  function drawFrontPaws(ctx, seatX, seatY, breath, state, skin) {
+  function drawFrontPaws(ctx, seatX, seatY, breath, state, skin, outlineOnly = false) {
     const bd = getBuild(skin);
     const bw = skin.shape.bodyWidth;
     const lie = clamp(state.lieIntensity || 0, 0, 1);
@@ -2001,19 +2026,19 @@
     const rDist = Math.hypot(rPos.x - RIGHT_PAW_REST.x, rPos.y - RIGHT_PAW_REST.y);
 
     if (lDist < 6.0 && !state.leftPawActive) {
-      if (lieS < 0.78) drawIdleFrontLeg(ctx, { x: seatX - idleTopX, y: idleTopY }, { x: seatX - idleBotX, y: idleBotY }, true, skin);
+      if (lieS < 0.78) drawIdleFrontLeg(ctx, { x: seatX - idleTopX, y: idleTopY }, { x: seatX - idleBotX, y: idleBotY }, true, skin, outlineOnly);
     } else {
       const ls = shoulder(-shX);
       const mid = { x: (ls.x + lPos.x) * 0.5 - 6, y: (ls.y + lPos.y) * 0.5 - 6 };
-      drawLimb(ctx, ls, mid, lPos, bd.limbStartW, bd.limbEndW, false, 0.78, skin, true);
+      drawLimb(ctx, ls, mid, lPos, bd.limbStartW, bd.limbEndW, false, 0.78, skin, true, outlineOnly);
     }
 
     if (rDist < 6.0 && !state.rightPawActive) {
-      if (lieS < 0.78) drawIdleFrontLeg(ctx, { x: seatX + idleTopX, y: idleTopY }, { x: seatX + idleBotX, y: idleBotY }, false, skin);
+      if (lieS < 0.78) drawIdleFrontLeg(ctx, { x: seatX + idleTopX, y: idleTopY }, { x: seatX + idleBotX, y: idleBotY }, false, skin, outlineOnly);
     } else {
       const rs = shoulder(shX);
       const mid = { x: (rs.x + rPos.x) * 0.5 + 4, y: (rs.y + rPos.y) * 0.5 - 6 };
-      drawLimb(ctx, rs, mid, rPos, bd.limbStartW, bd.limbEndW, true, 0.78, skin, true);
+      drawLimb(ctx, rs, mid, rPos, bd.limbStartW, bd.limbEndW, true, 0.78, skin, true, outlineOnly);
     }
   }
 
@@ -4202,7 +4227,7 @@
     };
   }
 
-  // --- Universal Native-Face Scruff-Lifted Drag Pose (v1.4.1 2D inertia + rounded shoulders + ventral belly fix) ---
+  // --- Universal Front-Facing Long-Cat Scruff-Lifted Drag Pose (1:1 parity with native CatRenderer.swift) ---
   function drawNativeScruffDragCat(ctx, state, skin, eyeThemeName, lift) {
     const liftS = smoothstep(0, 1, lift);
     let startle;
@@ -4213,108 +4238,190 @@
       const drop = state.scruffDropTimer || 0;
       startle = drop > 0.01 ? Math.min(1.0, drop / 0.12) : 1.0;
     }
+
     const swingH = clamp(state.scruffSwing || 0, -1.0, 1.0);
     const swingY = clamp(state.scruffSwingY || 0, -0.92, 0.92);
     const tailSwing = clamp(state.scruffTailSwing || 0, -1.25, 1.25);
-    const idleSway = Math.sin(state.time * 4.4) * 0.045 * (1 - startle);
-    const limbSwing = clamp(swingH * 0.85, -0.82, 0.82) * (1 - startle * 0.45) + idleSway;
+    const idleSway = Math.sin(state.time * 4.2) * 0.045 * (1.0 - startle);
+    const limbSwing = clamp(swingH * 0.85, -0.82, 0.82) * (1.0 - startle * 0.45) + idleSway;
     const upBillow = Math.max(0, -swingY);
 
     const pal = skin.palette;
     const bd = getBuild(skin);
     const hs = skin.shape.headScale;
     const bw = skin.shape.bodyWidth;
+    const nw = skin.shape.neckWidth || 1.0;
+    const isDazed = skin.renderStyle === 'dazed';
     const isBlackRim = isClassicBlackRim(skin);
     const limbInkCss = isBlackRim
-      ? 'rgba(235,235,235,0.24)'
-      : (pal.outline ? rgbaToCss(pal.outline) : 'rgba(46,38,31,0.28)');
+      ? 'rgba(240,240,240,0.28)'
+      : (pal.outline ? rgbaToCss(pal.outline) : 'rgba(46,38,31,0.26)');
 
-    const baseShiftX = state.bodyShiftX + swingH * 11.0;
-    const liftY = -liftS * 12.0 + Math.sin(state.time * 3.8) * 2.0 * (1 - startle) + swingY * 5.0;
-    const headCenter = { x: 112.0 + baseShiftX, y: lerpNum(140.0, 160.0, startle) + liftY };
-    const backCenter = { x: 200.0 + baseShiftX, y: lerpNum(152.0, 176.0, startle) + liftY };
+    const isSleek = skin.shape.build === 'sleek';
+    const plump = clamp((bw - 1.0) + (isSleek ? -0.15 : 0.0), -0.35, 0.38);
+    const limbWScale = clamp((bd.limbStartW / 19.0) * (1.0 + plump * 0.62), 0.72, 1.30);
+    const limbLenScale = clamp(1.0 - plump * 0.28 + (isSleek ? 0.07 : 0.0), 0.84, 1.18);
+
+    const baseShiftX = (state.bodyShiftX || 0) + swingH * 10.0;
+    const liftY = -liftS * 12.0 + Math.sin(state.time * 3.8) * 2.0 * (1.0 - startle) + swingY * 5.0;
+    const headCenter = {
+      x: 180.0 + baseShiftX,
+      y: lerpNum(94.0, 108.0, startle) + liftY + (hs - 1.0) * 6.0
+    };
 
     const cheekHalfW = bd.cheekHalfW * skin.shape.cheekFullness * hs;
     const crownY = bd.crownBaseY * hs;
     const cheekY = bd.cheekY * hs;
     const chinY = 33.0 * hs;
 
-    // Smooth, plush dangling cat body: continuous gentle convex arch from upper nape to rump (no concave neck dent, and BOTH ears stay 100% clear!)
-    const neckNape = { x: headCenter.x + cheekHalfW * 0.36, y: headCenter.y - 18 * hs };
-    const scruffPeak = { x: 184 + baseShiftX, y: lerpNum(108, 134, startle) + liftY };
-    const rumpRight = { x: 270 + baseShiftX + (bw - 1) * 10, y: lerpNum(154, 186, startle) + liftY };
-    const bellyRight = { x: 242 + baseShiftX, y: lerpNum(188, 212, startle) + liftY };
-    const bellyLeft = { x: 124 + baseShiftX, y: lerpNum(186, 206, startle) + liftY };
-    const chestLeft = { x: 100 + baseShiftX, y: lerpNum(166, 188, startle) + liftY };
-    const neckFront = { x: headCenter.x - cheekHalfW * 0.56, y: headCenter.y + 10 * hs };
+    const scruffTuftH = lerpNum(6.2, 3.8, startle) * hs;
+    const scruffPinch = { x: headCenter.x, y: headCenter.y + crownY - scruffTuftH };
 
-    const traceBack = () => {
+    const torsoLen = lerpNum(124.0 - plump * 18.0 + (isSleek ? 10.0 : 0.0), 104.0 - plump * 12.0, startle) * (1.0 + swingY * 0.08);
+    const torsoBottomY = headCenter.y + torsoLen;
+    const hipLagX = (swingH * 22.0 + idleSway * 16.0) * (1.0 - startle * 0.35);
+
+    const neckHalfW = Math.max(18.0 * hs, (cheekHalfW - bd.neckPinchX * hs) * nw);
+    const waistHalfW = bd.waistCtrlW * bw * lerpNum(0.84 + plump * 0.24, 0.92 + plump * 0.20, startle);
+    const hipHalfW = bd.hipHalfW * bw * lerpNum(0.95 + plump * 0.26, 1.00 + plump * 0.20, startle);
+    const bottomDip = 12.0 + Math.max(0.0, plump) * 14.0;
+    const rumpCenterX = headCenter.x + hipLagX;
+
+    // 1. Unified front-facing long-cat silhouette
+    const traceLongCat = () => {
+      const tuftBaseX = Math.min(12.5 * hs, cheekHalfW * 0.31);
+      const rCheekX = headCenter.x + cheekHalfW;
+      const lCheekX = headCenter.x - cheekHalfW;
+      const cheekPosY = headCenter.y + cheekY;
+      const neckCtrlY = headCenter.y + bd.neckCtrlY * hs;
+      const waistY = headCenter.y + torsoLen * 0.48;
+      const hipY = torsoBottomY - 14.0;
+      const waistCenterX = headCenter.x + hipLagX * 0.34;
+      const botHalf = hipHalfW * 0.62;
+
       ctx.beginPath();
-      ctx.moveTo(neckNape.x, neckNape.y);
+      ctx.moveTo(scruffPinch.x, scruffPinch.y);
       ctx.bezierCurveTo(
-        headCenter.x + cheekHalfW * 0.86, lerpNum(116, 140, startle) + liftY,
-        scruffPeak.x - 22, scruffPeak.y - 1,
-        scruffPeak.x, scruffPeak.y
+        headCenter.x + tuftBaseX * 0.56, scruffPinch.y + scruffTuftH * 0.06,
+        headCenter.x + tuftBaseX * 0.80, headCenter.y + crownY - scruffTuftH * 0.14,
+        headCenter.x + tuftBaseX, headCenter.y + crownY + 0.5 * hs
       );
       ctx.bezierCurveTo(
-        scruffPeak.x + 42, scruffPeak.y + 2,
-        rumpRight.x + 2, lerpNum(118, 152, startle) + liftY,
-        rumpRight.x, rumpRight.y
+        headCenter.x + bd.crownCtrlW * hs, headCenter.y + crownY,
+        rCheekX + 1.5 * hs, headCenter.y + bd.cheekCtrlTopY * hs,
+        rCheekX, cheekPosY
       );
       ctx.bezierCurveTo(
-        rumpRight.x - 2, lerpNum(178, 208, startle) + liftY,
-        bellyRight.x + 22, bellyRight.y,
-        bellyRight.x, bellyRight.y
+        headCenter.x + neckHalfW, neckCtrlY,
+        waistCenterX + waistHalfW, waistY,
+        rumpCenterX + hipHalfW, hipY
       );
       ctx.bezierCurveTo(
-        208 + baseShiftX, lerpNum(184, 208, startle) + liftY,
-        162 + baseShiftX, lerpNum(184, 208, startle) + liftY,
-        bellyLeft.x, bellyLeft.y
+        rumpCenterX + hipHalfW * 0.96, torsoBottomY + bottomDip * 0.55,
+        rumpCenterX + botHalf, torsoBottomY + bottomDip,
+        rumpCenterX, torsoBottomY + bottomDip
       );
       ctx.bezierCurveTo(
-        108 + baseShiftX, lerpNum(182, 204, startle) + liftY,
-        98 + baseShiftX, lerpNum(176, 198, startle) + liftY,
-        chestLeft.x, chestLeft.y
+        rumpCenterX - botHalf, torsoBottomY + bottomDip,
+        rumpCenterX - hipHalfW * 0.96, torsoBottomY + bottomDip * 0.55,
+        rumpCenterX - hipHalfW, hipY
       );
       ctx.bezierCurveTo(
-        100 + baseShiftX, lerpNum(156, 178, startle) + liftY,
-        neckFront.x - 2, neckFront.y + 10,
-        neckFront.x, neckFront.y
+        waistCenterX - waistHalfW, waistY,
+        headCenter.x - neckHalfW, neckCtrlY,
+        lCheekX, cheekPosY
+      );
+      ctx.bezierCurveTo(
+        lCheekX - 1.5 * hs, headCenter.y + bd.cheekCtrlTopY * hs,
+        headCenter.x - bd.crownCtrlW * hs, headCenter.y + crownY,
+        headCenter.x - tuftBaseX, headCenter.y + crownY + 0.5 * hs
+      );
+      ctx.bezierCurveTo(
+        headCenter.x - tuftBaseX * 0.80, headCenter.y + crownY - scruffTuftH * 0.14,
+        headCenter.x - tuftBaseX * 0.56, scruffPinch.y + scruffTuftH * 0.06,
+        scruffPinch.x, scruffPinch.y
       );
       ctx.closePath();
     };
 
-    const tailPivot = { x: rumpRight.x - 10, y: lerpNum(152, 182, startle) + liftY };
-    const tailLen = 84.0 * skin.shape.tailLength * (1.0 + swingY * 0.15);
-    const tailW = Math.max(8.5, bd.tailWidth * skin.shape.tailThickness * 1.12);
-    const rawTailAng = (tailSwing * (1.0 - startle * 0.25) + idleSway * 1.4) * 0.88;
-    const tailAng = clamp(rawTailAng, -1.12, 0.56);
-    const tailC1 = v1RotatePoint({ x: tailPivot.x + 20 + upBillow * 10, y: tailPivot.y + tailLen * 0.22 - upBillow * 12 }, tailPivot, tailAng * 0.45);
-    const tailC2 = v1RotatePoint({ x: tailPivot.x + 23 + upBillow * 22, y: tailPivot.y + tailLen * 0.66 - upBillow * 34 }, tailPivot, tailAng * 0.90);
-    const tailTip = v1RotatePoint({ x: tailPivot.x + 16 + upBillow * 26, y: tailPivot.y + tailLen - upBillow * 52 }, tailPivot, tailAng * 1.24);
+    // Exact 1:1 front-view body mapping
+    const dragBodyMap = (pt) => {
+      const u = (pt.y + 98.0) / 110.0;
+      const uC = clamp(u, 0.0, 1.15);
+      const ySpan = (torsoBottomY + bottomDip * 0.78) - headCenter.y;
+      const mappedY = headCenter.y + u * ySpan;
+      const baseRefW = Math.max(1.0, bd.hipHalfW * bw);
+      const targetW = lerpNum(waistHalfW / Math.max(1.0, bd.waistCtrlW * bw), hipHalfW / baseRefW, smoothstep(0.35, 0.95, uC));
+      const wScale = lerpNum(1.0, targetW, smoothstep(0.18, 0.55, uC));
+      const swayX = hipLagX * uC * uC;
+      return { x: headCenter.x + pt.x * bw * wScale + swayX, y: mappedY };
+    };
+
+    // 2. Dangling limp tail emerging from lower-right behind the hip
+    const tailPivot = { x: rumpCenterX + hipHalfW * 0.60, y: torsoBottomY - 16.0 };
+    const tailLen = 76.0 * skin.shape.tailLength * (1.0 + swingY * 0.14);
+    const tailW = Math.max(8.0, (isDazed ? 13.0 : bd.tailWidth * skin.shape.tailThickness) * 1.08);
+    const rawTailAng = (tailSwing * (1.0 - startle * 0.25) + idleSway * 1.5) * 0.85;
+    const tailAng = clamp(rawTailAng, -1.05, 0.75);
+    const tailC1 = v1RotatePoint({ x: tailPivot.x + 26 + upBillow * 10, y: tailPivot.y + tailLen * 0.22 - upBillow * 10 }, tailPivot, tailAng * 0.45);
+    const tailC2 = v1RotatePoint({ x: tailPivot.x + 36 + upBillow * 18, y: tailPivot.y + tailLen * 0.64 - upBillow * 26 }, tailPivot, tailAng * 0.92);
+    const tailTip = v1RotatePoint({ x: tailPivot.x + 24 + upBillow * 24, y: tailPivot.y + tailLen - upBillow * 40 }, tailPivot, tailAng * 1.26);
     const traceTailCurve = () => {
       ctx.beginPath();
       ctx.moveTo(tailPivot.x, tailPivot.y);
       ctx.bezierCurveTo(tailC1.x, tailC1.y, tailC2.x, tailC2.y, tailTip.x, tailTip.y);
     };
 
-    const makeLimb = (rA, tA, rB, tB, startW, endW, bendX, swingScale, splayDir, isBehindBody) => {
+    // 3. Four symmetric front-facing dangling limbs
+    const makeLimb = (rA, tA, rB, tB, w0, w1, bendX, swingScale, splayDir, armSpace, isBehindBody) => {
       const root = lerpPt(rA, rB, startle);
       const baseTip = lerpPt(tA, tB, startle);
-      const lenFactor = 1.0 + swingY * 0.17;
+      const lenFactor = (1.0 + swingY * 0.16) * limbLenScale;
       const stretched = {
         x: root.x + (baseTip.x - root.x) * lenFactor,
-        y: root.y + (baseTip.y - root.y) * lenFactor - upBillow * 7.0
+        y: root.y + (baseTip.y - root.y) * lenFactor - upBillow * 6.0
       };
-      const ang = limbSwing * swingScale + upBillow * 0.24 * splayDir;
+      const ang = limbSwing * swingScale + upBillow * 0.20 * splayDir;
       const tip = v1RotatePoint(stretched, root, ang);
-      const dynBendX = bendX + limbSwing * 14.0 * swingScale;
-      return { root, tip, startW, endW, bendX: dynBendX, isBehindBody: !!isBehindBody };
+      const dynBendX = bendX + limbSwing * 11.0 * swingScale;
+      return { root, tip, startW: w0 * limbWScale, endW: w1 * limbWScale, bendX: dynBendX, armSpace: armSpace || null, isBehindBody: !!isBehindBody };
     };
-    const backLeftLimb = makeLimb({ x: 220 + baseShiftX, y: 174 + liftY }, { x: 216 + baseShiftX, y: 218 + liftY }, { x: 204 + baseShiftX, y: 194 + liftY }, { x: 196 + baseShiftX, y: 222 + liftY }, 15.5, 12.5, -2, 0.66, -0.25, true);
-    const backRightLimb = makeLimb({ x: 248 + baseShiftX, y: 166 + liftY }, { x: 247 + baseShiftX, y: 224 + liftY }, { x: 252 + baseShiftX, y: 188 + liftY }, { x: 262 + baseShiftX, y: 226 + liftY }, 20.5, 15.5, 4, 0.78, 1.0, false);
-    const frontLeftLimb = makeLimb({ x: 112 + baseShiftX, y: 168 + liftY }, { x: 105 + baseShiftX, y: 226 + liftY }, { x: 112 + baseShiftX, y: 188 + liftY }, { x: 98 + baseShiftX, y: 224 + liftY }, 19.5, 15.0, -3.5, 0.72, -1.0, false);
-    const frontRightLimb = makeLimb({ x: 144 + baseShiftX, y: 170 + liftY }, { x: 142 + baseShiftX, y: 228 + liftY }, { x: 150 + baseShiftX, y: 190 + liftY }, { x: 162 + baseShiftX, y: 226 + liftY }, 20.0, 15.5, 3, 0.76, 0.35, false);
+
+    const shoulderY = headCenter.y + 42.0 * hs;
+    const shoulderInX = Math.max(12.0 * hs, Math.min(neckHalfW * 0.72, waistHalfW * 0.56));
+    const armLen = 56.0;
+    const frontLeftLimb = makeLimb(
+      { x: headCenter.x - shoulderInX + hipLagX * 0.16, y: shoulderY },
+      { x: headCenter.x - shoulderInX + 1.5 + hipLagX * 0.30, y: shoulderY + armLen },
+      { x: headCenter.x - shoulderInX + hipLagX * 0.12, y: shoulderY + 3.0 },
+      { x: headCenter.x - shoulderInX - 4.0 + hipLagX * 0.22, y: shoulderY + armLen * 0.84 },
+      13.6, 12.4, -1.5, 0.42, -0.65, 'leftArm', false
+    );
+    const frontRightLimb = makeLimb(
+      { x: headCenter.x + shoulderInX + hipLagX * 0.16, y: shoulderY },
+      { x: headCenter.x + shoulderInX - 1.5 + hipLagX * 0.30, y: shoulderY + armLen },
+      { x: headCenter.x + shoulderInX + hipLagX * 0.12, y: shoulderY + 3.0 },
+      { x: headCenter.x + shoulderInX + 4.0 + hipLagX * 0.22, y: shoulderY + armLen * 0.84 },
+      13.6, 12.4, 1.5, 0.42, 0.65, 'rightArm', false
+    );
+
+    const hindRootX = Math.max(13.0, hipHalfW * 0.42);
+    const hindRootY = torsoBottomY + bottomDip * 0.20 - 12.0;
+    const hindLen = 46.0;
+    const backLeftLimb = makeLimb(
+      { x: rumpCenterX - hindRootX, y: hindRootY },
+      { x: rumpCenterX - hindRootX - 2.5, y: hindRootY + hindLen },
+      { x: rumpCenterX - hindRootX - 1.0, y: hindRootY - 3.0 },
+      { x: rumpCenterX - hindRootX - 7.5, y: hindRootY + hindLen * 0.80 },
+      15.2, 12.8, -1.5, 0.68, -0.65, 'hindLeg', true
+    );
+    const backRightLimb = makeLimb(
+      { x: rumpCenterX + hindRootX, y: hindRootY },
+      { x: rumpCenterX + hindRootX + 2.5, y: hindRootY + hindLen },
+      { x: rumpCenterX + hindRootX + 1.0, y: hindRootY - 3.0 },
+      { x: rumpCenterX + hindRootX + 7.5, y: hindRootY + hindLen * 0.80 },
+      15.2, 12.8, 1.5, 0.68, 0.65, 'hindLeg', true
+    );
 
     const limbGeo = (limb) => {
       const dx = limb.tip.x - limb.root.x, dy = limb.tip.y - limb.root.y;
@@ -4325,8 +4432,8 @@
       const p0R = { x: limb.root.x - nx * r0, y: limb.root.y - ny * r0 };
       const p1L = { x: limb.tip.x + nx * r1, y: limb.tip.y + ny * r1 };
       const p1R = { x: limb.tip.x - nx * r1, y: limb.tip.y - ny * r1 };
-      const midL = { x: (p0L.x + p1L.x) * 0.5 + limb.bendX * 0.5 + nx * 1.4, y: (p0L.y + p1L.y) * 0.5 + ny * 1.4 };
-      const midR = { x: (p0R.x + p1R.x) * 0.5 + limb.bendX * 0.5 - nx * 1.4, y: (p0R.y + p1R.y) * 0.5 - ny * 1.4 };
+      const midL = { x: (p0L.x + p1L.x) * 0.5 + limb.bendX * 0.5 + nx * 1.2, y: (p0L.y + p1L.y) * 0.5 + ny * 1.2 };
+      const midR = { x: (p0R.x + p1R.x) * 0.5 + limb.bendX * 0.5 - nx * 1.2, y: (p0R.y + p1R.y) * 0.5 - ny * 1.2 };
       const pawC1 = { x: p1L.x + ux * r1 * 1.25, y: p1L.y + uy * r1 * 1.25 };
       const pawC2 = { x: p1R.x + ux * r1 * 1.25, y: p1R.y + uy * r1 * 1.25 };
       return { ux, uy, nx, ny, r0, r1, p0L, p0R, p1L, p1R, midL, midR, pawC1, pawC2 };
@@ -4346,7 +4453,6 @@
       ctx.quadraticCurveTo(g.midL.x, g.midL.y, g.p1L.x, g.p1L.y);
       ctx.bezierCurveTo(g.pawC1.x, g.pawC1.y, g.pawC2.x, g.pawC2.y, g.p1R.x, g.p1R.y);
       ctx.quadraticCurveTo(g.midR.x, g.midR.y, g.p0R.x, g.p0R.y);
-      // Rounded shoulder socket cap (zero flat cutoff!)
       ctx.bezierCurveTo(
         g.p0R.x - g.ux * g.r0 * 0.85, g.p0R.y - g.uy * g.r0 * 0.85,
         g.p0L.x - g.ux * g.r0 * 0.85, g.p0L.y - g.uy * g.r0 * 0.85,
@@ -4356,7 +4462,7 @@
     };
     const traceLimbInk = (limb) => {
       const g = limbGeo(limb);
-      const t0 = 0.26, omt = 1.0 - t0;
+      const t0 = 0.24, omt = 1.0 - t0;
       const s0L = {
         x: omt * omt * g.p0L.x + 2 * omt * t0 * g.midL.x + t0 * t0 * g.p1L.x,
         y: omt * omt * g.p0L.y + 2 * omt * t0 * g.midL.y + t0 * t0 * g.p1L.y
@@ -4374,48 +4480,70 @@
       ctx.quadraticCurveTo(scR.x, scR.y, s0R.x, s0R.y);
     };
 
-    const traceHead = () => {
-      ctx.beginPath();
-      ctx.moveTo(headCenter.x, headCenter.y + crownY);
-      ctx.bezierCurveTo(headCenter.x + bd.crownCtrlW * hs, headCenter.y + crownY, headCenter.x + cheekHalfW + 1.5 * hs, headCenter.y + bd.cheekCtrlTopY * hs, headCenter.x + cheekHalfW, headCenter.y + cheekY);
-      ctx.bezierCurveTo(headCenter.x + cheekHalfW * 0.96, headCenter.y + chinY * 0.86, headCenter.x + cheekHalfW * 0.56, headCenter.y + chinY, headCenter.x, headCenter.y + chinY);
-      ctx.bezierCurveTo(headCenter.x - cheekHalfW * 0.56, headCenter.y + chinY, headCenter.x - cheekHalfW * 0.96, headCenter.y + chinY * 0.86, headCenter.x - cheekHalfW, headCenter.y + cheekY);
-      ctx.bezierCurveTo(headCenter.x - cheekHalfW - 1.5 * hs, headCenter.y + bd.cheekCtrlTopY * hs, headCenter.x - bd.crownCtrlW * hs, headCenter.y + crownY, headCenter.x, headCenter.y + crownY);
-      ctx.closePath();
-    };
-
-    const colorDist3 = (a, b) => (!a || !b) ? 1 : (Math.abs(a.r - b.r) + Math.abs(a.g - b.g) + Math.abs(a.b - b.b));
-    const isBicolorWhiteFront = !skin.colorpoint
-      && colorDist3(pal.body, pal.earOuter) > 0.14
-      && colorDist3(pal.earOuter, pal.tail) < 0.05
-      && (!pal.belly || colorDist3(pal.body, pal.belly) < 0.04);
-    const dorsalColor = isBicolorWhiteFront ? pal.earOuter : pal.body;
-    const ventralBelly = isBicolorWhiteFront
-      ? pal.body
-      : (pal.belly && !sameColor(pal.belly, pal.body) ? pal.belly : null);
-
     const drawDragLimb = (limb) => {
+      const g = limbGeo(limb);
+      if (isDazed && limb.armSpace && !limb.isBehindBody) {
+        const leftEdge = [], rightEdge = [];
+        for (let i = 0; i <= 8; i++) {
+          const t = i / 8.0, omt = 1.0 - t;
+          leftEdge.push({
+            x: omt * omt * g.p0L.x + 2 * omt * t * g.midL.x + t * t * g.p1L.x,
+            y: omt * omt * g.p0L.y + 2 * omt * t * g.midL.y + t * t * g.p1L.y
+          });
+          rightEdge.push({
+            x: omt * omt * g.p0R.x + 2 * omt * t * g.midR.x + t * t * g.p1R.x,
+            y: omt * omt * g.p0R.y + 2 * omt * t * g.midR.y + t * t * g.p1R.y
+          });
+        }
+        const pawRect = { x: limb.tip.x - g.r1, y: limb.tip.y - g.r1 * 0.4, w: g.r1 * 2, h: g.r1 * 1.8 };
+        drawDazedArm(ctx, () => traceLimbFill(limb), leftEdge, rightEdge, pawRect);
+        return;
+      }
+
       ctx.save();
       traceLimbFill(limb);
       ctx.clip();
-      const g = ctx.createLinearGradient(limb.root.x, limb.root.y, limb.tip.x, limb.tip.y);
-      if (skin.colorpoint) {
+      const grad = ctx.createLinearGradient(limb.root.x, limb.root.y, limb.tip.x, limb.tip.y);
+      if (isDazed) {
+        grad.addColorStop(0.0, '#E3C99F');
+        grad.addColorStop(1.0, '#C8A77A');
+      } else if (skin.colorpoint) {
         const mid = pal.pointsMid || pal.legs;
-        g.addColorStop(0.0, rgbaToCss(pal.body));
-        g.addColorStop(0.22, rgbaToCss(pal.body));
-        g.addColorStop(0.54, rgbaToCss(mid));
-        g.addColorStop(0.88, rgbaToCss(pal.paws));
-      } else if (!limb.isBehindBody && !sameColor(pal.legs, dorsalColor)) {
-        g.addColorStop(0.0, rgbaToCss(dorsalColor));
-        g.addColorStop(0.12, rgbaToCss(dorsalColor));
-        g.addColorStop(0.38, rgbaToCss(pal.legs));
-        g.addColorStop(0.80, rgbaToCss(pal.paws));
+        grad.addColorStop(0.0, rgbaToCss(pal.body));
+        grad.addColorStop(0.20, rgbaToCss(pal.body));
+        grad.addColorStop(0.54, rgbaToCss(mid));
+        grad.addColorStop(0.88, rgbaToCss(pal.paws));
+      } else if (!limb.isBehindBody && !sameColor(pal.legs, pal.body)) {
+        grad.addColorStop(0.0, rgbaToCss(pal.body));
+        grad.addColorStop(0.14, rgbaToCss(pal.body));
+        grad.addColorStop(0.42, rgbaToCss(pal.legs));
+        grad.addColorStop(0.82, rgbaToCss(pal.paws));
       } else {
-        g.addColorStop(0.22, rgbaToCss(pal.legs));
-        g.addColorStop(0.72, rgbaToCss(pal.paws));
+        const legCol = limb.isBehindBody ? (pal.hindLeg || pal.legs) : pal.legs;
+        const pawCol = limb.isBehindBody ? (pal.hindPaw || pal.paws) : pal.paws;
+        grad.addColorStop(0.22, rgbaToCss(legCol));
+        grad.addColorStop(0.75, rgbaToCss(pawCol));
       }
-      ctx.fillStyle = g;
+      ctx.fillStyle = grad;
       ctx.fillRect(0, 0, 360, 320);
+
+      if (limb.armSpace) {
+        const sign = limb.armSpace === 'leftArm' ? -1.0 : ((limb.armSpace === 'hindLeg' && limb.bendX < 0) ? -1.0 : 1.0);
+        const armMap = (p) => {
+          const t = clamp(p.x / 100.0, 0.0, 1.0);
+          const omt = 1.0 - t;
+          const lx = omt * omt * g.p0L.x + 2 * omt * t * g.midL.x + t * t * g.p1L.x;
+          const ly = omt * omt * g.p0L.y + 2 * omt * t * g.midL.y + t * t * g.p1L.y;
+          const rx = omt * omt * g.p0R.x + 2 * omt * t * g.midR.x + t * t * g.p1R.x;
+          const ry = omt * omt * g.p0R.y + 2 * omt * t * g.midR.y + t * t * g.p1R.y;
+          const cx = (lx + rx) * 0.5, cy = (ly + ry) * 0.5;
+          const hx = (rx - lx) * 0.5, hy = (ry - ly) * 0.5;
+          const u = sign * (p.y / 10.0);
+          return { x: cx + hx * u, y: cy + hy * u };
+        };
+        for (const r of skin.regions) if (r.space === limb.armSpace) drawRegion(ctx, r, armMap);
+        for (const m of skin.marks) if (m.space === limb.armSpace) drawMark(ctx, m, 'round', armMap);
+      }
       ctx.restore();
 
       ctx.save();
@@ -4425,16 +4553,12 @@
       ctx.lineJoin = 'round';
       traceLimbInk(limb);
       ctx.stroke();
-
-      const dx = limb.tip.x - limb.root.x, dy = limb.tip.y - limb.root.y;
-      const len = Math.max(1, Math.hypot(dx, dy));
-      const ux = dx / len, uy = dy / len, nx = -uy, ny = ux;
       ctx.beginPath();
       for (const side of [-1, 1]) {
-        const ax = limb.tip.x + nx * side * 2.5 + ux * 1.6;
-        const ay = limb.tip.y + ny * side * 2.5 + uy * 1.6;
-        const bx = limb.tip.x + nx * side * 2.5 + ux * (limb.endW * 0.44);
-        const by = limb.tip.y + ny * side * 2.5 + uy * (limb.endW * 0.44);
+        const ax = limb.tip.x + g.nx * side * 2.5 + g.ux * 1.6;
+        const ay = limb.tip.y + g.ny * side * 2.5 + g.uy * 1.6;
+        const bx = limb.tip.x + g.nx * side * 2.5 + g.ux * (limb.endW * 0.44);
+        const by = limb.tip.y + g.ny * side * 2.5 + g.uy * (limb.endW * 0.44);
         ctx.moveTo(ax, ay); ctx.lineTo(bx, by);
       }
       ctx.stroke();
@@ -4456,14 +4580,14 @@
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
-    const bodyPendulum = clamp(swingH * 0.14, -0.14, 0.14);
+    const bodyPendulum = clamp(swingH * 0.16, -0.17, 0.17);
     if (Math.abs(bodyPendulum) > 0.001) {
-      ctx.translate(scruffPeak.x, scruffPeak.y);
+      ctx.translate(scruffPinch.x, scruffPinch.y);
       ctx.rotate(bodyPendulum);
-      ctx.translate(-scruffPeak.x, -scruffPeak.y);
+      ctx.translate(-scruffPinch.x, -scruffPinch.y);
     }
 
-    // Pass 0: Universal sticker-style outer white silhouette rim for ALL skins
+    // Pass 0: Universal sticker-style outer white silhouette rim
     if (stateWhiteOutline) {
       const whiteRimW = WHITE_OUTLINE_W * 2.0 + (pal.outline ? 2.0 : 0.0);
       ctx.save();
@@ -4474,13 +4598,12 @@
       for (const l of [backLeftLimb, backRightLimb, frontLeftLimb, frontRightLimb]) {
         traceLimbRim(l); ctx.stroke();
       }
-      traceBack(); ctx.stroke();
       drawEars(true);
-      traceHead(); ctx.stroke();
+      traceLongCat(); ctx.stroke();
       ctx.restore();
     }
 
-    if (pal.outline) {
+    if (pal.outline && !isDazed) {
       ctx.save();
       ctx.strokeStyle = rgbaToCss(pal.outline);
       ctx.lineWidth = tailW + 2.4;
@@ -4489,16 +4612,15 @@
       for (const l of [backLeftLimb, backRightLimb, frontLeftLimb, frontRightLimb]) {
         traceLimbRim(l); ctx.stroke();
       }
-      traceBack(); ctx.stroke();
-      traceHead(); ctx.stroke();
+      traceLongCat(); ctx.stroke();
       ctx.restore();
     }
 
     const hasDecos = skin.decorations && skin.decorations.length > 0;
     const decoAnchors = {
       neck: {
-        origin: { x: headCenter.x, y: headCenter.y + 36.0 * hs },
-        rot: limbSwing * 0.16,
+        origin: { x: headCenter.x + hipLagX * 0.08, y: headCenter.y + 36.0 * hs },
+        rot: limbSwing * 0.14,
         kx: hs, ky: hs, offsetScaleX: bw, offsetScaleY: hs
       },
       tailTip: {
@@ -4508,7 +4630,7 @@
       }
     };
 
-    // 1. Limp drooping/whipping tail
+    // 1. Limp drooping/whipping tail behind lower body
     ctx.save();
     ctx.lineCap = 'round';
     if (!isBlackRim && !pal.outline) {
@@ -4516,10 +4638,10 @@
       ctx.lineWidth = tailW + 2.0;
       traceTailCurve(); ctx.stroke();
     }
-    ctx.strokeStyle = rgbaToCss(pal.tail);
+    ctx.strokeStyle = isDazed ? '#283157' : rgbaToCss(pal.tail);
     ctx.lineWidth = tailW;
     traceTailCurve(); ctx.stroke();
-    if (pal.stripes && !isBlackRim && !skin.colorpoint) {
+    if (pal.stripes && !isBlackRim && !skin.colorpoint && !isDazed) {
       const evalTailPt = (t) => {
         const u = 1 - t;
         return {
@@ -4539,7 +4661,7 @@
       }
       ctx.lineCap = 'round';
     }
-    if (pal.tailTip) {
+    if (!isDazed && pal.tailTip) {
       const tipStart = lerpPt(tailC2, tailTip, 0.35);
       ctx.strokeStyle = rgbaToCss(pal.tailTip);
       ctx.lineWidth = tailW * 0.92;
@@ -4551,160 +4673,193 @@
     ctx.restore();
 
     if (hasDecos) {
-      drawDecorations(ctx, backCenter.x, backCenter.y + 30, headCenter, state, skin, { anchors: ['tailTip'], decoAnchors });
+      drawDecorations(ctx, rumpCenterX, torsoBottomY, headCenter, state, skin, { anchors: ['tailTip'], decoAnchors });
     }
 
-    // 2. Back-left inner leg
+    // 2. Dangling hind legs emerging from lower belly hem
     drawDragLimb(backLeftLimb);
-
-    // 3. Arched scruff-lifted neck & back body dome (with dorsal coat & ventral white belly facing DOWN!)
-    ctx.save();
-    traceBack();
-    ctx.fillStyle = rgbaToCss(dorsalColor);
-    ctx.fill();
-    ctx.clip();
-    if (pal.bodyShade && !isBicolorWhiteFront) {
-      const grad = ctx.createLinearGradient(backCenter.x, scruffPeak.y, backCenter.x, bellyRight.y);
-      grad.addColorStop(0.15, rgbaToCss(dorsalColor));
-      grad.addColorStop(1.0, rgbaToCss(pal.bodyShade));
-      ctx.fillStyle = grad;
-      ctx.fillRect(0, 0, 360, 320);
-    }
-    const dragBodyMap = (pt) => ({ x: backCenter.x + pt.x * bw * 1.15, y: backCenter.y + (pt.y + 44) * 0.68 });
-    const isFrontBellyBib = (color, pts) => {
-      if (!ventralBelly || !pts || !pts.length) return false;
-      if (colorDist3(color, ventralBelly) >= 0.18) return false;
-      let minX = Infinity, maxX = -Infinity;
-      for (const p of pts) { if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x; }
-      const span = maxX - minX;
-      return minX < -8 && maxX > 8 && Math.abs(minX + maxX) < span * 0.35;
-    };
-    const isRedundantDorsalPatch = (color) => isBicolorWhiteFront && colorDist3(color, dorsalColor) < 0.16;
-    for (const r of skin.regions) {
-      if (r.space !== 'body') continue;
-      if (isFrontBellyBib(r.fill, r.flat || r.anchors) || isRedundantDorsalPatch(r.fill)) continue;
-      drawRegion(ctx, r, dragBodyMap);
-    }
-    for (const m of skin.marks) {
-      if (m.space !== 'body') continue;
-      if (!m.stroke && (isFrontBellyBib(m.color, m.points) || isRedundantDorsalPatch(m.color))) continue;
-      drawMark(ctx, m, 'round', dragBodyMap);
-    }
-    if (isBicolorWhiteFront && pal.stripes) {
-      // Soft dorsal tabby saddle stripes curving down from the longer arched spine
-      ctx.strokeStyle = rgbaToCss(pal.stripes, 0.34);
-      ctx.lineWidth = 4.6;
-      ctx.lineCap = 'round';
-      for (let i = 0; i < 3; i++) {
-        const sx = scruffPeak.x + 8 + i * 24;
-        const sy = scruffPeak.y + 6 + i * 7;
-        ctx.beginPath();
-        ctx.moveTo(sx, sy - 6);
-        ctx.quadraticCurveTo(sx + 6, sy + 14, sx - 2, sy + 30);
-        ctx.stroke();
-      }
-    }
-    if (ventralBelly) {
-      const bellyLift = isBicolorWhiteFront ? -5 : 0;
-      ctx.fillStyle = rgbaToCss(ventralBelly, 0.96);
-      ctx.beginPath();
-      ctx.moveTo(chestLeft.x + 2, lerpNum(170, 192, startle) + liftY + bellyLift);
-      ctx.bezierCurveTo(
-        150 + baseShiftX, lerpNum(166, 190, startle) + liftY + bellyLift,
-        208 + baseShiftX, lerpNum(166, 190, startle) + liftY + bellyLift,
-        bellyRight.x + 12, lerpNum(176, 198, startle) + liftY + bellyLift + 2
-      );
-      ctx.lineTo(rumpRight.x + 4, bellyRight.y + 18);
-      ctx.lineTo(chestLeft.x - 10, bellyLeft.y + 18);
-      ctx.closePath();
-      ctx.fill();
-    }
-    ctx.restore();
-    if (!isBlackRim) {
-      ctx.save();
-      ctx.strokeStyle = pal.outline ? rgbaToCss(pal.outline) : 'rgba(46,38,31,0.22)';
-      ctx.lineWidth = pal.outline ? 1.5 : 1.05;
-      traceBack(); ctx.stroke();
-      ctx.restore();
-    }
-
-    // 4. Back-right + Front-left + Front-right dangling paws
     drawDragLimb(backRightLimb);
-    drawDragLimb(frontLeftLimb);
-    drawDragLimb(frontRightLimb);
 
-    if (hasDecos) {
-      drawDecorations(ctx, backCenter.x, backCenter.y + 30, headCenter, state, skin, { anchors: ['neck'], decoAnchors });
-    }
-
-    // 5. Native 3D ears
+    // 3. Native 3D Ears behind head crown
     drawEars(false);
 
-    // 6. Native KuroCat head with coat shading, colorpoint mask, regions & marks
-    ctx.save();
-    traceHead();
-    ctx.fillStyle = rgbaToCss(pal.body);
-    ctx.fill();
-    ctx.clip();
-
+    // 4. Unified Front-Facing Long-Cat Head + Subtle Scruff Pinch + Stretched Torso
     const headMap = (p) => headPoint(p, false, skin, headCenter, state);
     const skullMap = (p) => headPoint(p, true, skin, headCenter, state);
 
-    if (pal.bodyShade) {
-      const grad = ctx.createLinearGradient(headCenter.x, headCenter.y - 32, headCenter.x, headCenter.y + 34);
-      grad.addColorStop(0.2, rgbaToCss(pal.body));
-      grad.addColorStop(1.0, rgbaToCss(pal.bodyShade));
-      ctx.fillStyle = grad;
-      ctx.fillRect(0, 0, 360, 320);
-    }
-    for (const r of skin.regions) {
-      if (r.space === 'head' || r.space === 'skull') drawRegion(ctx, r, r.space === 'skull' ? skullMap : headMap);
-    }
-    if (pal.points) {
-      const mid = pal.pointsMid || pal.points;
+    if (isDazed) {
       ctx.save();
-      ctx.translate(headCenter.x, headCenter.y + 3.0);
-      ctx.scale(1.22 * hs, 0.88 * hs);
-      const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 31.0);
-      g.addColorStop(0.0, rgbaToCss(pal.points, 1));
-      g.addColorStop(0.42, rgbaToCss(pal.points, 0.92));
-      g.addColorStop(0.74, rgbaToCss(mid, 0.62));
-      g.addColorStop(1.0, rgbaToCss(mid, 0));
-      ctx.fillStyle = g;
+      traceLongCat();
+      ctx.clip();
+      const bellyGrad = ctx.createLinearGradient(headCenter.x, headCenter.y + 30, rumpCenterX, torsoBottomY + bottomDip);
+      bellyGrad.addColorStop(0.0, '#F4DFB8');
+      bellyGrad.addColorStop(1.0, '#C8A77A');
+      ctx.fillStyle = bellyGrad;
+      ctx.fillRect(0, 0, 360, 320);
+
+      const tunicBotY = headCenter.y + torsoLen * 0.74;
+      ctx.save();
       ctx.beginPath();
-      ctx.arc(0, 0, 32, 0, Math.PI * 2);
+      ctx.moveTo(headCenter.x - cheekHalfW * 1.4, headCenter.y);
+      ctx.lineTo(headCenter.x + cheekHalfW * 1.4, headCenter.y);
+      ctx.lineTo(rumpCenterX + hipHalfW * 1.2, tunicBotY);
+      ctx.bezierCurveTo(
+        rumpCenterX + hipHalfW * 0.5, tunicBotY + 14,
+        rumpCenterX - hipHalfW * 0.5, tunicBotY + 14,
+        rumpCenterX - hipHalfW * 1.2, tunicBotY
+      );
+      ctx.closePath();
+      ctx.clip();
+      const clothGrad = ctx.createLinearGradient(headCenter.x - 16, headCenter.y + 20, rumpCenterX + 12, tunicBotY + 10);
+      clothGrad.addColorStop(0.0, '#555F9B');
+      clothGrad.addColorStop(1.0, '#252E58');
+      ctx.fillStyle = clothGrad;
+      ctx.fillRect(0, 0, 360, 320);
+      ctx.restore();
+
+      ctx.strokeStyle = 'rgba(124,134,188,0.65)';
+      ctx.lineWidth = 1.3;
+      ctx.beginPath();
+      ctx.moveTo(rumpCenterX - hipHalfW, tunicBotY - 1);
+      ctx.bezierCurveTo(
+        rumpCenterX - hipHalfW * 0.45, tunicBotY + 11,
+        rumpCenterX + hipHalfW * 0.45, tunicBotY + 11,
+        rumpCenterX + hipHalfW, tunicBotY - 1
+      );
+      ctx.stroke();
+      ctx.restore();
+
+      // Fluffy Palico hood around head
+      ctx.save();
+      ctx.translate(headCenter.x, headCenter.y);
+      ctx.rotate(state.headTilt);
+      ctx.beginPath();
+      ctx.moveTo(0.0, -33.0 - scruffTuftH);
+      ctx.bezierCurveTo(28.0, -35.0, 48.0, -16.0, 48.0, 9.0);
+      ctx.bezierCurveTo(48.0, 32.0, 25.0, 41.0, 0.0, 41.0);
+      ctx.bezierCurveTo(-25.0, 41.0, -48.0, 32.0, -48.0, 9.0);
+      ctx.bezierCurveTo(-48.0, -16.0, -28.0, -35.0, 0.0, -33.0 - scruffTuftH);
+      ctx.closePath();
+      ctx.clip();
+      const hoodGrad = ctx.createLinearGradient(-16, -38, 15, 42);
+      hoodGrad.addColorStop(0.0, '#6871B4');
+      hoodGrad.addColorStop(1.0, '#2F386D');
+      ctx.fillStyle = hoodGrad;
+      ctx.fillRect(-60, -60, 120, 120);
+      ctx.restore();
+    } else {
+      ctx.save();
+      traceLongCat();
+      ctx.fillStyle = rgbaToCss(pal.body);
       ctx.fill();
+      ctx.clip();
+
+      if (pal.bodyShade) {
+        const grad = ctx.createLinearGradient(headCenter.x, headCenter.y - 36, rumpCenterX, torsoBottomY + bottomDip);
+        grad.addColorStop(0.15, rgbaToCss(pal.body));
+        grad.addColorStop(1.0, rgbaToCss(pal.bodyShade));
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, 360, 320);
+      }
+
+      if (pal.headBody) {
+        ctx.save();
+        drawPolyline(ctx, jawSide(true, skin.shape.cheekFullness), true, headMap);
+        ctx.clip();
+        traceLongCat();
+        ctx.fillStyle = rgbaToCss(pal.headBody);
+        ctx.fill();
+        ctx.restore();
+      }
+
+      if (pal.points) {
+        const mid = pal.pointsMid || pal.points;
+        ctx.save();
+        ctx.translate(headCenter.x, headCenter.y + 3.0);
+        ctx.scale(1.22 * hs, 0.88 * hs);
+        const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 31.0);
+        g.addColorStop(0.0, rgbaToCss(pal.points, 1));
+        g.addColorStop(0.42, rgbaToCss(pal.points, 0.92));
+        g.addColorStop(0.74, rgbaToCss(mid, 0.62));
+        g.addColorStop(1.0, rgbaToCss(mid, 0));
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(0, 0, 32, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+
+      const dragBodySide = jawSide(false, skin.shape.cheekFullness);
+      for (const r of skin.regions) {
+        if (r.space !== 'body') continue;
+        ctx.save();
+        drawPolyline(ctx, dragBodySide, true, headMap);
+        ctx.clip();
+        drawRegion(ctx, r, dragBodyMap);
+        ctx.restore();
+      }
+      const dragHeadSide = jawSide(true, skin.shape.cheekFullness);
+      for (const r of skin.regions) {
+        if (r.space !== 'head' && r.space !== 'skull') continue;
+        ctx.save();
+        drawPolyline(ctx, dragHeadSide, true, headMap);
+        ctx.clip();
+        drawRegion(ctx, r, r.space === 'skull' ? skullMap : headMap);
+        ctx.restore();
+      }
+      for (const m of skin.marks) {
+        if (m.space !== 'body') continue;
+        ctx.save();
+        drawPolyline(ctx, dragBodySide, true, headMap);
+        ctx.clip();
+        drawMark(ctx, m, 'round', dragBodyMap);
+        ctx.restore();
+      }
+      for (const m of skin.marks) {
+        if (m.space === 'head' || m.space === 'skull') {
+          drawMark(ctx, m, 'round', m.space === 'skull' ? skullMap : headMap);
+        }
+      }
+      ctx.restore();
+
+      if (!isBlackRim) {
+        ctx.save();
+        ctx.strokeStyle = pal.outline ? rgbaToCss(pal.outline) : 'rgba(46,38,31,0.22)';
+        ctx.lineWidth = pal.outline ? 1.5 : 1.05;
+        traceLongCat(); ctx.stroke();
+        ctx.restore();
+      }
+
+      // Subtle soft chin shadow curve
+      ctx.save();
+      ctx.strokeStyle = isBlackRim
+        ? 'rgba(255,255,255,0.16)'
+        : (pal.outline ? rgbaToCss(pal.outline, 0.45) : 'rgba(46,38,31,0.16)');
+      ctx.lineWidth = isBlackRim ? 1.05 : 1.0;
+      ctx.beginPath();
+      ctx.moveTo(headCenter.x - cheekHalfW * 0.56, headCenter.y + chinY - 2.5 * hs);
+      ctx.quadraticCurveTo(
+        headCenter.x, headCenter.y + chinY + 3.5 * hs,
+        headCenter.x + cheekHalfW * 0.56, headCenter.y + chinY - 2.5 * hs
+      );
+      ctx.stroke();
       ctx.restore();
     }
-    for (const m of skin.marks) {
-      if (m.space === 'head' || m.space === 'skull') drawMark(ctx, m, 'round', m.space === 'skull' ? skullMap : headMap);
-    }
-    ctx.restore();
 
-    ctx.save();
-    ctx.strokeStyle = isBlackRim
-      ? 'rgba(255,255,255,0.22)'
-      : (pal.outline ? rgbaToCss(pal.outline) : 'rgba(46,38,31,0.20)');
-    ctx.lineWidth = isBlackRim ? 1.15 : (pal.outline ? 1.5 : 1.0);
-    ctx.beginPath();
-    ctx.moveTo(headCenter.x - cheekHalfW * 0.82, headCenter.y + cheekY + 12 * hs);
-    ctx.bezierCurveTo(
-      headCenter.x - cheekHalfW * 0.45, headCenter.y + chinY + 2 * hs,
-      headCenter.x + cheekHalfW * 0.45, headCenter.y + chinY + 2 * hs,
-      headCenter.x + cheekHalfW * 0.82, headCenter.y + cheekY + 12 * hs
-    );
-    ctx.stroke();
-    ctx.restore();
+    // 5. Native KuroCat Face Features (normal authentic almond eyes)
+    drawHeadFeatures(ctx, headCenter, state, eyeThemeName, skin, 0, 0);
 
-    // 7. Native KuroCat face features
-    drawHeadFeatures(ctx, headCenter, state, eyeThemeName, skin, startle, 1 - startle);
+    // 6. Dangling front arms along outer shoulder slopes
+    drawDragLimb(frontLeftLimb);
+    drawDragLimb(frontRightLimb);
 
+    // 7. Skin stickers / decorations
     if (hasDecos) {
-      drawDecorations(ctx, backCenter.x, backCenter.y + 30, headCenter, state, skin, { anchors: ['face', 'headTop'], decoAnchors });
+      drawDecorations(ctx, rumpCenterX, torsoBottomY, headCenter, state, skin, { anchors: ['neck', 'face', 'headTop'], decoAnchors });
     }
 
     ctx.restore();
-    return { seatX: backCenter.x, seatY: backCenter.y + 30, headCenter, decoAnchors };
+    return { seatX: rumpCenterX, seatY: torsoBottomY, headCenter, decoAnchors };
   }
 
   // Spring helper & shared Douni/Drag physics stepping for both Workshop Editor & Plaza Play Modal
@@ -5359,7 +5514,7 @@
     const fallAngle = -dizzyFall * 1.46 + Math.sin(state.time * 9.5) * 0.16 * preWobble;
     const fallShiftX = dizzyFall * 56.0;
     const fallShiftY = dizzyFall * 20.0;
-    const tailInFront = (state.tailTyping || 0) >= 0.5 || lieS >= 0.45;
+    const tailInFront = (state.tailTyping || 0) > 0.05 || lieS >= 0.45;
 
     ctx.save();
     if (Math.abs(fallAngle) > 0.001 || Math.abs(fallShiftX) > 0.1 || Math.abs(fallShiftY) > 0.1) {
@@ -5378,12 +5533,22 @@
       ctx.restore();
     };
 
+    const drawHindFootLayer = (outlineOnly) => {
+      if (state.hindFootActive <= 0.03 || dizzy >= 0.45 || lie >= 0.45) return;
+      const hip = { x: seatX + 26 * skin.shape.bodyWidth, y: seatY + 2 };
+      const target = state.hindFoot;
+      const mid = { x: (hip.x + target.x) * 0.5 + 10, y: (hip.y + target.y) * 0.5 - 8 };
+      drawLimb(ctx, hip, mid, target, 15.0, 12.0, true, 0.85 * state.hindFootActive, skin, false, outlineOnly);
+    };
+
     // Pass 1: Universal sticker-style outer white outline for ALL skins
-    // Outline connected parts before fills so the foreground sleeping tail root has no white seam (synced with KuroCat PR #22)
+    // Outline connected parts before fills so the foreground sleeping tail root and reaching shoulders have no white seam (synced with KuroCat PR #22)
     if (stateWhiteOutline) {
       drawTail(ctx, seatX, seatY, state, skin, true);
       drawEarsLayer(true);
       drawUnifiedSilhouette(ctx, seatX, seatY, headCenter, breath, state, skin, true);
+      drawHindFootLayer(true);
+      drawFrontPaws(ctx, seatX, seatY, breath, state, skin, true);
     }
 
     if (isDazedSkin(skin)) {
@@ -5402,12 +5567,7 @@
 
     drawUnifiedSilhouette(ctx, seatX, seatY, headCenter, breath, state, skin, false);
 
-    if (state.hindFootActive > 0.03 && dizzy < 0.45 && lie < 0.45) {
-      const hip = { x: seatX + 26 * skin.shape.bodyWidth, y: seatY + 2 };
-      const target = state.hindFoot;
-      const mid = { x: (hip.x + target.x) * 0.5 + 10, y: (hip.y + target.y) * 0.5 - 8 };
-      drawLimb(ctx, hip, mid, target, 15.0, 12.0, true, 0.85 * state.hindFootActive, skin);
-    }
+    drawHindFootLayer(false);
 
     // Front arms/paws emerge from shoulders underneath neck accessories (collar/scarf/bowtie)
     drawFrontPaws(ctx, seatX, seatY, breath, state, skin);

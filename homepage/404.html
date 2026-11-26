@@ -5,28 +5,25 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>404 · 页面走丢了 | KuroCat</title>
   <meta name="robots" content="noindex" />
-  <meta name="theme-color" content="#F7F5F0" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@500;600&family=Manrope:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=20261125b" />
+  <meta name="theme-color" content="#ffffff" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg" />
+  <link rel="stylesheet" href="/site.css?v=20261125c" />
 </head>
 <body>
-  <main style="min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 32px;">
-    <section style="max-width: 480px; width: 100%; padding: 40px; border-radius: 24px; background-color: #FDFCF9; border: 1px solid #DFD8CC; text-align: center;">
-      <div style="display: inline-flex; margin-bottom: 24px;" aria-hidden="true">
-        <span class="brand-mark" style="width: 48px; height: 48px; border-radius: 12px;">
-          <span class="brand-eye" style="width: 7px; height: 15px;"></span>
-          <span class="brand-eye" style="width: 7px; height: 15px;"></span>
-        </span>
-      </div>
-      <div class="caption-3 mono-tag" style="color: #B57547; margin-bottom: 12px;">404 NOT FOUND</div>
-      <h1 class="heading-4" style="margin: 0 0 12px;">小猫把这页叼走了</h1>
-      <p class="body-6" style="margin: 0 0 32px; color: #59554E;">你访问的路径不存在或已迁移。可以返回 KuroCat 官网首页，或直接前往国内下载页与皮肤工坊。</p>
-      <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 12px;">
-        <a class="btn btn-primary button-sm" href="./">返回 KuroCat 官网</a>
-        <a class="btn btn-secondary button-sm" href="https://kurocat-download.app.workbuddy.host/?sharecode=JVAABIVZ7L" target="_blank" rel="noopener">国内高速下载页</a>
-        <a class="btn btn-ghost button-sm" href="https://workshop.kurocat.cc/" target="_blank" rel="noopener">皮肤工坊</a>
+  <svg class="sprite" hidden aria-hidden="true">
+    <symbol id="i-cat" viewBox="0 0 24 24"><path class="fill" d="M4.2 3.4c.4-.2.9-.1 1.2.2l3 2.9a8.9 8.9 0 0 1 7.2 0l3-2.9c.3-.3.8-.4 1.2-.2.4.2.7.6.7 1v8.1c0 4.6-3.9 8.2-8.5 8.2S3.5 17.1 3.5 12.5V4.4c0-.4.3-.8.7-1Zm4.6 9.1a1.3 1.4 0 1 0 0 2.8 1.3 1.4 0 0 0 0-2.8Zm6.4 0a1.3 1.4 0 1 0 0 2.8 1.3 1.4 0 0 0 0-2.8Zm-3.2 3.7-1 .9h2l-1-.9Z"/></symbol>
+  </svg>
+  <main class="notfound">
+    <section class="notfound-card">
+      <svg class="notfound-mark" aria-hidden="true"><use href="#i-cat" /></svg>
+      <div class="notfound-code">404 NOT FOUND</div>
+      <h1>小猫把这页叼走了</h1>
+      <p>你访问的路径不存在或已迁移。可以返回 KuroCat 官网首页，或直接前往国内下载页与皮肤工坊。</p>
+      <div class="notfound-actions">
+        <a class="btn btn-m btn-blue" href="/">返回 KuroCat 官网</a>
+        <a class="btn btn-m btn-grey" href="https://kurocat-download.app.workbuddy.host/?sharecode=JVAABIVZ7L" target="_blank" rel="noopener">国内高速下载页</a>
+        <a class="btn btn-m btn-grey" href="https://workshop.kurocat.cc/" target="_blank" rel="noopener">皮肤工坊</a>
       </div>
     </section>
   </main>

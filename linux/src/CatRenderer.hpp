@@ -208,9 +208,9 @@ public:
         float seatY = CatPhysics::SeatAnchor.y - scruff * 22.0f + lieS * 10.0f;
 
         if (skin.renderStyle == SkinRenderStyle::Douni) {
-            drawDouniScene(cr, physics, skin, kbSkin, settings.eyeTheme, settings.keyboardMarquee);
+            drawDouniScene(cr, physics, skin, kbSkin, settings.eyeTheme, settings.keyboardMarquee, settings.flipHorizontal);
             if (!physics.floatingKeycaps.empty()) {
-                drawFloatingKeycaps(cr, physics);
+                drawFloatingKeycaps(cr, physics, settings.flipHorizontal);
             }
             cairo_restore(cr);
             if (settings.isEditMode) {
@@ -222,24 +222,11 @@ public:
         // Universal Scruff-Lifted Drag Pose (ALL non-Douni cat skins keep their own authentic KuroCat face/head/ears/markings in front,
         // with scruff-lifted arched neck/back, 4 dangling swinging paws, and limp drooping tail!)
         if (scruff > 0.005f) {
-            double kbFade = std::clamp(1.0 - (double)scruff * 2.6, 0.0, 1.0);
-            if (kbFade > 0.01) {
-                cairo_save(cr);
-                cairo_push_group(cr);
-                if (physics.isTabletActive) {
-                    drawTablet(cr, physics, settings.keyboardTheme, settings.eyeTheme);
-                    drawParkedStylus(cr, settings.keyboardTheme, settings.eyeTheme);
-                } else {
-                    drawMouse(cr, physics, kbSkin);
-                }
-                drawKeyboard(cr, physics, kbSkin, settings.eyeTheme, settings.showKeyLegends, settings.keyboardMarquee);
-                cairo_pop_group_to_source(cr);
-                cairo_paint_with_alpha(cr, kbFade);
-                cairo_restore(cr);
-            }
-            drawNativeScruffDragCat(cr, physics, skin, settings.eyeTheme, (double)scruff);
+            drawNativeScruffDragCat(cr, physics, skin, settings.eyeTheme, kbSkin, settings.keyboardTheme,
+                                    settings.showKeyLegends, settings.keyboardMarquee, settings.overrideSkinIris, (double)scruff,
+                                    settings.flipHorizontal);
             if (!physics.floatingKeycaps.empty()) {
-                drawFloatingKeycaps(cr, physics);
+                drawFloatingKeycaps(cr, physics, settings.flipHorizontal);
             }
             cairo_restore(cr);
             if (settings.isEditMode) {
@@ -251,10 +238,12 @@ public:
         float fallAngle = -dizzyFall * 1.46f + std::sin(physics.time * 9.5f) * 0.16f * preWobble;
         float fallShiftX = dizzyFall * 56.0f;
         float fallShiftY = dizzyFall * 20.0f;
+        bool isClassic = isClassicBlack(skin) || (skin.builtIn && skin.id == "builtin:1") || isBuiltInPatterned(skin);
+        float sharedSleepHead = isClassic ? (standardBuild().headLift - buildOf(skin).headLift) * lieS : 0.0f;
 
         Pt headCenter = {
             seatX + physics.bodyTilt.value * 36.0f + physics.headYaw.value * 7.5f - lieS * 4.0f,
-            126.0f + buildOf(skin).headLift - scruff * 22.0f + physics.headOffsetY.value + physics.headPitch.value * 4.8f + breath * 1.1f + lieS * 60.0f
+            126.0f + buildOf(skin).headLift + sharedSleepHead - scruff * 22.0f + physics.headOffsetY.value + physics.headPitch.value * 4.8f + breath * 1.1f + lieS * 60.0f
         };
 
         if (physics.isTabletActive) {
@@ -265,7 +254,7 @@ public:
         } else {
             drawMouse(cr, physics, kbSkin);
         }
-        drawKeyboard(cr, physics, kbSkin, settings.eyeTheme, settings.showKeyLegends, settings.keyboardMarquee);
+        drawKeyboard(cr, physics, kbSkin, settings.eyeTheme, settings.showKeyLegends, settings.keyboardMarquee, settings.flipHorizontal);
         cairo_save(cr);
         if (dizzy > 0.01f) {
             cairo_translate(cr, seatX + fallShiftX, seatY + fallShiftY);
@@ -273,18 +262,27 @@ public:
             cairo_translate(cr, -seatX, -seatY);
         }
 
-        bool tailInFront = (physics.tailTyping.value >= 0.5f) || (lieS >= 0.45f);
+        bool tailInFront = (physics.tailTyping.value > 0.05f) || (lieS >= 0.45f);
         // Pass 1: unified sticker-style outer white outline for ALL cat skins (optional)
         if (whiteOutlineEnabled()) {
-            // Outline connected parts first; fills cover the internal tail-root seam.
+            // Outline connected parts first; fills cover internal tail-root and shoulder seams.
             drawTail(cr, seatX, seatY, physics, skin, true);
             drawEarsLayer(cr, headCenter, physics, skin, true);
             drawUnifiedSilhouette(cr, seatX, seatY, headCenter, breath, physics, skin, true);
+            if (physics.hindFootActive.value > 0.03f) {
+                drawHindFoot(cr, seatX, seatY, physics, skin, true);
+            }
+            drawFrontPaws(cr, seatX, seatY, breath, physics, skin, true);
         }
         if (skin.renderStyle == SkinRenderStyle::Dazed) {
             drawDazedSword(cr, seatX, seatY, physics);
         }
-        if (!tailInFront) drawTail(cr, seatX, seatY, physics, skin);
+        if (!tailInFront) {
+            drawTail(cr, seatX, seatY, physics, skin);
+            if (!skin.decorations.empty()) {
+                drawDecorations(cr, seatX, seatY, headCenter, physics, skin, nullptr, nullptr, anchorBit(SkinAnchorPoint::TailTip));
+            }
+        }
         drawEarsLayer(cr, headCenter, physics, skin);
         drawUnifiedSilhouette(cr, seatX, seatY, headCenter, breath, physics, skin);
 
@@ -292,17 +290,31 @@ public:
             drawHindFoot(cr, seatX, seatY, physics, skin);
         }
 
-        drawHeadFeatures(cr, headCenter, physics, settings.eyeTheme, skin);
-        if (!skin.decorations.empty()) drawDecorations(cr, seatX, seatY, headCenter, physics, skin);
         drawFrontPaws(cr, seatX, seatY, breath, physics, skin);
 
         if (physics.isTabletActive && physics.leftPawOnMouse && scruff <= 0.25f && dizzy <= 0.35f && lie <= 0.45f) {
             drawHeldStylus(cr, physics, settings.keyboardTheme, settings.eyeTheme);
         }
 
-        if (tailInFront) {
+        if (!skin.decorations.empty()) {
+            drawDecorations(cr, seatX, seatY, headCenter, physics, skin, nullptr, nullptr, anchorBit(SkinAnchorPoint::Neck));
+        }
 
+        drawHeadFeatures(cr, headCenter, physics, settings.eyeTheme, skin, 0.0, 0.0, settings.overrideSkinIris);
+        if (!skin.decorations.empty()) {
+            drawDecorations(cr, seatX, seatY, headCenter, physics, skin, nullptr, nullptr,
+                            anchorBit(SkinAnchorPoint::Face) | anchorBit(SkinAnchorPoint::HeadTop));
+        }
+
+        if (physics.musicIntensity > 0.01f) {
+            drawMusicHeadphones(cr, headCenter, physics, settings.eyeTheme, skin);
+        }
+
+        if (tailInFront) {
             drawTail(cr, seatX, seatY, physics, skin);
+            if (!skin.decorations.empty()) {
+                drawDecorations(cr, seatX, seatY, headCenter, physics, skin, nullptr, nullptr, anchorBit(SkinAnchorPoint::TailTip));
+            }
         }
         cairo_restore(cr);
 
@@ -340,9 +352,9 @@ public:
         }
 
         if (!physics.floatingKeycaps.empty()) {
-            drawFloatingKeycaps(cr, physics);
+            drawFloatingKeycaps(cr, physics, settings.flipHorizontal);
         }
-        drawSparkles(cr, physics, settings.eyeTheme);
+        drawSparkles(cr, physics, settings.eyeTheme, settings.flipHorizontal);
         cairo_restore(cr);
 
         if (settings.isEditMode) {
@@ -451,6 +463,13 @@ private:
                std::fabs(mark.color.g - 238.0 / 255.0) < 0.01 &&
                std::fabs(mark.color.b - 228.0 / 255.0) < 0.01;
     }
+    static bool shouldSkipJawHeadClip(const SkinMark& mark) {
+        if (mark.space != SkinSpace::Head || mark.stroke || !isMilkMark(mark)) return false;
+        for (const auto& pt : mark.points) {
+            if (std::fabs(pt.x) > 46.0f) return true;
+        }
+        return false;
+    }
     static bool isBuiltInShorthair(const SkinSpec& skin) { return skin.builtIn && skin.id == "builtin:2"; }
     static bool isBuiltInOrangeWhite(const SkinSpec& skin) { return skin.builtIn && skin.id == "builtin:3"; }
     static bool isBuiltInPatterned(const SkinSpec& skin) { return isBuiltInShorthair(skin) || isBuiltInOrangeWhite(skin); }
@@ -467,7 +486,7 @@ private:
         float idleTopDY, idleTopX, idleBotX, shoulderX, limbStartW, limbEndW;
         bool sleekEyes;
     };
-    static const Build& buildOf(const SkinSpec& skin) {
+    static const Build& standardBuild() {
         static const Build standard = { 0.0f,
             42.5f, 26.0f, -30.0f, 5.0f, -14.0f, 2.5f, 24.0f,
             49.0f, 51.5f, -48.0f, 47.0f, 36.0f, 24.0f,
@@ -476,6 +495,9 @@ private:
             26.5, 8.5, 8.5, 5.5, 10.75, 6.25,
             30.0f, 18.0f, 16.0f, 20.0f, 19.0f, 13.5f,
             false };
+        return standard;
+    }
+    static const Build& buildOf(const SkinSpec& skin) {
         static const Build sleek = { -3.0f,
             42.5f, 25.0f, -29.5f, 6.5f, -13.0f, 6.5f, 27.5f,
             44.5f, 41.0f, -50.0f, 42.0f, 32.0f, 22.0f,
@@ -484,7 +506,7 @@ private:
             23.25, 7.75, 9.5, 6.0, 10.75, 6.25,
             31.0f, 16.5f, 15.0f, 18.5f, 17.0f, 12.5f,
             true };
-        return skin.shape.build == SkinBuild::Sleek ? sleek : standard;
+        return skin.shape.build == SkinBuild::Sleek ? sleek : standardBuild();
     }
 
     // Scale v around c by k; returns v untouched when k == 1 so default shapes stay bit-identical.
@@ -583,10 +605,83 @@ private:
     // Strokes get round caps, except tail-space strokes (bands around the tail) which are cut flat.
     template <class Map>
     static void drawMark(cairo_t* cr, const SkinMark& mark, Map map, cairo_line_cap_t cap = CAIRO_LINE_CAP_ROUND) {
+        if (mark.points.empty()) return;
+        if (!mark.stroke) {
+            tracePolyline(cr, mark.points, map);
+            setCol(cr, mark.color);
+            cairo_close_path(cr);
+            cairo_fill(cr);
+            return;
+        }
+        double baseW = mark.width > 0.0f ? (double)mark.width : 2.0;
+        if (mark.brush == SkinBrush::Airbrush) {
+            std::vector<Pt> mapped;
+            mapped.reserve(mark.points.size());
+            for (const SkinPoint& pt : mark.points) { auto q = map(pt); mapped.push_back(Pt{(float)q.x, (float)q.y}); }
+            double radius = std::max(2.2, baseW * 1.15);
+            double stepDist = std::max(1.4, radius * 0.34);
+            auto stamp = [&](double x, double y) {
+                cairo_pattern_t* pat = cairo_pattern_create_radial(x, y, 0.0, x, y, radius);
+                cairo_pattern_add_color_stop_rgba(pat, 0.0, mark.color.r, mark.color.g, mark.color.b, mark.color.a * 0.34);
+                cairo_pattern_add_color_stop_rgba(pat, 0.45, mark.color.r, mark.color.g, mark.color.b, mark.color.a * 0.16);
+                cairo_pattern_add_color_stop_rgba(pat, 1.0, mark.color.r, mark.color.g, mark.color.b, 0.0);
+                cairo_set_source(cr, pat);
+                cairo_new_path(cr);
+                cairo_arc(cr, x, y, radius, 0.0, 2.0 * M_PI);
+                cairo_fill(cr);
+                cairo_pattern_destroy(pat);
+            };
+            if (mapped.size() == 1) {
+                stamp(mapped[0].x, mapped[0].y);
+            } else {
+                double carry = 0.0;
+                stamp(mapped[0].x, mapped[0].y);
+                for (size_t i = 1; i < mapped.size(); ++i) {
+                    const Pt& a = mapped[i - 1], &b = mapped[i];
+                    double seg = std::hypot(b.x - a.x, b.y - a.y);
+                    if (seg < 0.001) continue;
+                    double d = stepDist - carry;
+                    while (d <= seg) {
+                        double t = d / seg;
+                        stamp(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t);
+                        d += stepDist;
+                    }
+                    carry = seg - (d - stepDist);
+                }
+            }
+            return;
+        }
+        if (mark.brush == SkinBrush::Soft || mark.brush == SkinBrush::Smudge) {
+            double soft = std::max(0.0, std::min(1.0, (double)mark.softness));
+            struct Pass { double mul; double a; };
+            Pass passes[4];
+            if (mark.brush == SkinBrush::Smudge) {
+                passes[0] = {1.0 + soft * 1.25, 0.12};
+                passes[1] = {1.0 + soft * 0.72, 0.18};
+                passes[2] = {1.0 + soft * 0.25, 0.28};
+                passes[3] = {0.68, 0.42};
+            } else {
+                passes[0] = {1.0 + soft * 1.15, 0.14};
+                passes[1] = {1.0 + soft * 0.65, 0.24};
+                passes[2] = {1.0 + soft * 0.22, 0.38};
+                passes[3] = {0.72, 0.62};
+            }
+            cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND);
+            cairo_set_line_join(cr, CAIRO_LINE_JOIN_ROUND);
+            for (const Pass& p : passes) {
+                tracePolyline(cr, mark.points, map);
+                cairo_set_source_rgba(cr, mark.color.r, mark.color.g, mark.color.b, mark.color.a * p.a);
+                cairo_set_line_width(cr, std::max(0.6, baseW * p.mul));
+                cairo_stroke(cr);
+            }
+            return;
+        }
         tracePolyline(cr, mark.points, map);
         setCol(cr, mark.color);
-        if (!mark.stroke) { cairo_close_path(cr); cairo_fill(cr); }
-        else { cairo_set_line_width(cr,mark.width);cairo_set_line_cap(cr,cap);cairo_set_line_join(cr,CAIRO_LINE_JOIN_ROUND);cairo_stroke(cr); }
+        cairo_set_line_width(cr, baseW);
+        cairo_set_line_cap(cr, cap);
+        cairo_set_line_join(cr, CAIRO_LINE_JOIN_ROUND);
+        cairo_stroke(cr);
     }
     template <class Map>
     static void drawRegion(cairo_t* cr, const SkinRegion& region, Map map) {
@@ -703,7 +798,7 @@ private:
     static void drawMouse(cairo_t* cr, const CatPhysics& physics, const KeyboardSkinSpec& kbSkin) {
         Pt center = { CatPhysics::MouseBaseCenter.x + physics.mouseOffset.point().x,
                       CatPhysics::MouseBaseCenter.y + physics.mouseOffset.point().y };
-        float pressShift = std::max(physics.mousePressLeft.value, physics.mousePressRight.value) * 1.6f;
+        float pressShift = std::max({physics.mousePressLeft.value, physics.mousePressRight.value, physics.mousePressMiddle.value}) * 1.6f;
 
         cairo_save(cr);
         cairo_translate(cr, center.x, center.y + pressShift);
@@ -750,8 +845,10 @@ private:
         cairo_stroke(cr);
 
         // Amber scroll wheel
-        roundedRect(cr, -1.9, 2.5, 3.8, 8.5, 1.9);
-        setCol(cr, wheelCol);
+        double wheelPress = std::clamp((double)physics.mousePressMiddle.value, 0.0, 1.0);
+        RGBA wheelFill = wheelPress > 0.02 ? blend(wheelCol, {1.0, 1.0, 1.0, 1.0}, 0.6 * wheelPress) : wheelCol;
+        roundedRect(cr, -1.9, 2.5 + wheelPress, 3.8, 8.5 - wheelPress, 1.9);
+        setCol(cr, wheelFill);
         cairo_fill(cr);
 
         // Outer border
@@ -957,8 +1054,11 @@ private:
     static void drawHeldStylus(cairo_t* cr, const CatPhysics& physics, KeyboardTheme theme, EyeColorTheme eyeTheme) {
         Pt lPos = physics.leftPaw.point();
         float press = std::clamp(physics.tabletPenPress.value, 0.0f, 1.0f);
-        Pt nib = { lPos.x - 5.5f, lPos.y + 7.0f + press * 1.4f };
-        double angle = -2.18 + physics.tabletPenTilt.value;
+        double angle = (double)physics.stylusAngle();
+        Pt nib = {
+            lPos.x - (float)std::cos(angle) * CatPhysics::StylusBarrelGripDistance,
+            lPos.y - (float)std::sin(angle) * CatPhysics::StylusBarrelGripDistance + press * 1.4f
+        };
 
         cairo_save(cr);
         cairo_translate(cr, nib.x, nib.y);
@@ -998,7 +1098,7 @@ private:
         }
     }
 
-    static void drawKeyboard(cairo_t* cr, const CatPhysics& physics, const KeyboardSkinSpec& kbSkin, EyeColorTheme eyeTheme, bool showLegends, bool marquee) {
+    static void drawKeyboard(cairo_t* cr, const CatPhysics& physics, const KeyboardSkinSpec& kbSkin, EyeColorTheme eyeTheme, bool showLegends, bool marquee, bool flipped = false) {
         Pt tl = KeyboardLayout::screenQuadPoint(-0.012f, -0.04f);
         Pt tr = KeyboardLayout::screenQuadPoint(1.012f, -0.04f);
         Pt bl = KeyboardLayout::screenQuadPoint(-0.016f, 1.04f);
@@ -1160,7 +1260,8 @@ private:
                     cairo_save(cr);
                     cairo_translate(cr, cx, cy);
                     // Keyboard faces the cat (180°), so legends read upright from the cat's seat.
-                    cairo_rotate(cr, 3.14159265358979 + 0.052);
+                    cairo_rotate(cr, KeyboardLayout::levelKeyboard() ? 3.14159265358979 : (3.14159265358979 + 0.052));
+                    if (flipped) cairo_scale(cr, -1.0, 1.0);
                     cairo_move_to(cr, -(ext.width * 0.5 + ext.x_bearing), -(ext.height * 0.5 + ext.y_bearing));
                     cairo_show_text(cr, legend.c_str());
                     cairo_restore(cr);
@@ -1220,11 +1321,12 @@ private:
         double bw = skin.shape.bodyWidth;
         double rootShift = 34.0 * bw - 34.0; // tail root stays on the (wider/narrower) hip
         double tl = skin.shape.tailLength;
+        double tailDY = skin.shape.tailRootY;
         TailCurve c;
-        c.x0 = seatX + 34.0 * bw;                                              c.y0 = seatY - 6.0;
-        c.x1 = seatX + 64.0 + rootShift + 12.0 * reach + fx * 0.25;            c.y1 = seatY + 2.0 + wag1 * 0.35 + huntDrop * 0.4 - 18.0 * reach + fy * 0.22 + curl * 0.35;
-        c.x2 = seatX + 66.0 + wag2 * 0.4 + rootShift + fx * 0.65 - curl * 0.45; c.y2 = seatY - 26.0 + wag1 * 0.7 + huntDrop + fy * 0.60 - curl * 0.55;
-        c.x3 = seatX + 91.0 + wag2 * 0.5 + rootShift + fx;                     c.y3 = seatY - 30.0 + wag1 * 0.85 + huntDrop + fy;
+        c.x0 = seatX + 34.0 * bw;                                              c.y0 = seatY - 6.0 + tailDY;
+        c.x1 = seatX + 64.0 + rootShift + 12.0 * reach + fx * 0.25;            c.y1 = seatY + 2.0 + tailDY + wag1 * 0.35 + huntDrop * 0.4 - 18.0 * reach + fy * 0.22 + curl * 0.35;
+        c.x2 = seatX + 66.0 + wag2 * 0.4 + rootShift + fx * 0.65 - curl * 0.45; c.y2 = seatY - 26.0 + tailDY + wag1 * 0.7 + huntDrop + fy * 0.60 - curl * 0.55;
+        c.x3 = seatX + 91.0 + wag2 * 0.5 + rootShift + fx;                     c.y3 = seatY - 30.0 + tailDY + wag1 * 0.85 + huntDrop + fy;
         c.x1 = around(c.x1, c.x0, tl); c.y1 = around(c.y1, c.y0, tl);
         c.x2 = around(c.x2, c.x0, tl); c.y2 = around(c.y2, c.y0, tl);
         c.x3 = around(c.x3, c.x0, tl); c.y3 = around(c.y3, c.y0, tl);
@@ -1361,11 +1463,27 @@ private:
     }
 
     static void drawDazedSilhouette(cairo_t* cr, float seatX, float seatY, Pt head, const CatPhysics& physics) {
+        float lie = std::clamp(physics.lieIntensity.value, 0.0f, 1.0f);
+        float lieS = lie * lie * (3.0f - 2.0f * lie);
+        float squash = physics.bodySquash.value;
+        float sy = squash * (1.0f - lieS * 0.42f);
+        float sx = (1.0f + (1.0f - squash) * 0.55f) * (1.0f + lieS * 0.03f);
+        float bTilt = physics.bodyTilt.value;
+        float cB = std::cos(bTilt), sB = std::sin(bTilt);
+        auto B = [&](float lx, float ly) -> Pt {
+            float rx = lx * sx, ry = ly * sy;
+            return { seatX + rx * cB - ry * sB, seatY + rx * sB + ry * cB };
+        };
+        float hTilt = physics.headTilt.value;
+        float cH = std::cos(hTilt), sH = std::sin(hTilt);
+        auto H = [&](float lx, float ly) -> Pt {
+            return { head.x + lx * cH - ly * sH, head.y + lx * sH + ly * cH };
+        };
+
         cairo_save(cr);
         cairo_translate(cr, seatX, seatY);
-        cairo_rotate(cr, physics.bodyTilt.value);
-        float squash = physics.bodySquash.value;
-        cairo_scale(cr, 1.0f + (1.0f - squash) * 0.55f, squash);
+        cairo_rotate(cr, bTilt);
+        cairo_scale(cr, sx, sy);
 
         drawDazedPaw(cr, -34.0, -2.0, 19.0, 18.0);
         if (physics.hindFootActive.value < 0.35f) {
@@ -1383,23 +1501,40 @@ private:
         cairo_set_source(cr, bellyGrad);
         cairo_fill(cr);
         cairo_pattern_destroy(bellyGrad);
+        cairo_restore(cr);
 
+        // Tunic dynamically bridges head lower edge (H(±22, 22)) to lieS-adapted body hem (B(±44, -17))
+        // so the hood and cloak never detach during big motions or sleep.
+        Pt collarL = H(-22.0f, 22.0f);
+        Pt collarR = H(22.0f, 22.0f);
+        Pt hemL = B(-44.0f, -17.0f);
+        Pt hemR = B(44.0f, -17.0f);
+        Pt c1L = { collarL.x * 0.55f + hemL.x * 0.45f - 5.0f, collarL.y * 0.72f + hemL.y * 0.28f };
+        Pt c2L = B(-44.0f, -35.0f);
+        Pt bC1 = B(-37.0f, -2.0f);
+        Pt bC2 = B(37.0f, -2.0f);
+        Pt c1R = B(44.0f, -35.0f);
+        Pt c2R = { collarR.x * 0.55f + hemR.x * 0.45f + 5.0f, collarR.y * 0.72f + hemR.y * 0.28f };
+
+        cairo_save(cr);
         cairo_new_path(cr);
-        cairo_move_to(cr, -21.0, -65.0);
-        cairo_curve_to(cr, -34.0, -56.0, -44.0, -35.0, -44.0, -17.0);
-        cairo_curve_to(cr, -37.0, -2.0, 37.0, -2.0, 44.0, -17.0);
-        cairo_curve_to(cr, 44.0, -35.0, 34.0, -56.0, 21.0, -65.0);
+        cairo_move_to(cr, collarL.x, collarL.y);
+        cairo_curve_to(cr, c1L.x, c1L.y, c2L.x, c2L.y, hemL.x, hemL.y);
+        cairo_curve_to(cr, bC1.x, bC1.y, bC2.x, bC2.y, hemR.x, hemR.y);
+        cairo_curve_to(cr, c1R.x, c1R.y, c2R.x, c2R.y, collarR.x, collarR.y);
         cairo_close_path(cr);
-        cairo_pattern_t* clothGrad = cairo_pattern_create_linear(-16.0, -65.0, 12.0, -5.0);
+        Pt gradEnd = B(12.0f, -5.0f);
+        cairo_pattern_t* clothGrad = cairo_pattern_create_linear(head.x - 16.0, collarL.y, gradEnd.x, gradEnd.y);
         dazedAddStopHex(clothGrad, 0.0, 0x555F9B);
         dazedAddStopHex(clothGrad, 1.0, 0x252E58);
         cairo_set_source(cr, clothGrad);
         cairo_fill(cr);
         cairo_pattern_destroy(clothGrad);
 
+        Pt hL = B(-39.0f, -15.0f), hC1 = B(-28.0f, -6.0f), hC2 = B(28.0f, -6.0f), hR = B(39.0f, -15.0f);
         cairo_new_path(cr);
-        cairo_move_to(cr, -39.0, -15.0);
-        cairo_curve_to(cr, -28.0, -6.0, 28.0, -6.0, 39.0, -15.0);
+        cairo_move_to(cr, hL.x, hL.y);
+        cairo_curve_to(cr, hC1.x, hC1.y, hC2.x, hC2.y, hR.x, hR.y);
         dazedSetHex(cr, 0x7C86BC, 155.0 / 255.0);
         cairo_set_line_width(cr, 1.1);
         cairo_stroke(cr);
@@ -1407,7 +1542,7 @@ private:
 
         cairo_save(cr);
         cairo_translate(cr, head.x, head.y);
-        cairo_rotate(cr, physics.headTilt.value);
+        cairo_rotate(cr, hTilt);
         cairo_new_path(cr);
         cairo_move_to(cr, 0.0, -33.0);
         cairo_curve_to(cr, 28.0, -35.0, 48.0, -16.0, 48.0, 9.0);
@@ -1479,6 +1614,33 @@ private:
 
         fillEllipse(cr, 0.0, 11.5, 1.9, 1.4);
 
+        double dazedDizzy = std::clamp((double)std::max(physics.dizzyIntensity.value, physics.scruffDizzyIntensity.value), 0.0, 1.0);
+        if (dazedDizzy > 0.28) {
+            for (int side = 0; side < 2; ++side) {
+                double x = (side == 0) ? -11.8 : 11.8;
+                cairo_set_source_rgba(cr, 0.98, 0.98, 0.96, 0.95);
+                cairo_new_path(cr);
+                cairo_arc(cr, x, 1.0, 8.5, 0.0, 2.0 * PI);
+                cairo_fill(cr);
+                dazedSetHex(cr, 0x282333);
+                cairo_set_line_width(cr, 1.6);
+                cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND);
+                double spin = physics.dizzyPhase * (side == 0 ? 1.0 : -1.0);
+                cairo_new_path(cr);
+                for (int i = 0; i <= 40; ++i) {
+                    double t = (double)i / 40.0;
+                    double theta = spin + t * PI * 4.8;
+                    double rad = 0.8 + t * 6.5;
+                    double sx = x + std::cos(theta) * rad;
+                    double sy = 1.0 + std::sin(theta) * rad;
+                    if (i == 0) cairo_move_to(cr, sx, sy);
+                    else cairo_line_to(cr, sx, sy);
+                }
+                cairo_stroke(cr);
+            }
+            cairo_restore(cr);
+            return;
+        }
         bool happy = physics.isHappyClosedEyes();
         bool squint = physics.isBlissfulSquint();
         if (happy || squint) {
@@ -1604,20 +1766,32 @@ private:
     static void drawTail(cairo_t* cr, float seatX, float seatY, const CatPhysics& physics, const SkinSpec& skin, bool outlineOnly = false) {
         TailCurve c = tailCurve(seatX, seatY, physics, skin);
         bool art = !outlineOnly && (skin.hasPartArt(SkinSpace::Tail) || skin.palette.tailTip.set);
-        double width = (skin.renderStyle == SkinRenderStyle::Dazed) ? 13.0 : (buildOf(skin).tailWidth * skin.shape.tailThickness);
         double lie = std::clamp(physics.lieIntensity.value, 0.0f, 1.0f);
         double lieS = lie * lie * (3.0 - 2.0 * lie);
+        bool isClassic = isClassicBlack(skin) || (skin.builtIn && skin.id == "builtin:1") || isBuiltInPatterned(skin);
+        double sharedSleep = isClassic ? lieS : 0.0;
+        double tailBaseW = lerpD(buildOf(skin).tailWidth, standardBuild().tailWidth, sharedSleep);
+        double width = (skin.renderStyle == SkinRenderStyle::Dazed) ? 13.0 : (tailBaseW * skin.shape.tailThickness);
 
         cairo_save(cr);
         if (art) cairo_push_group(cr);
-        if (outlineOnly) setCol(cr, blackOutline);
-        else setCol(cr, skin.palette.tail);
+        cairo_pattern_t* tailPat = nullptr;
+        if (outlineOnly) {
+            setCol(cr, blackOutline);
+        } else if (auto tg = skin.partGradients.find("tail"); tg != skin.partGradients.end()) {
+            tailPat = createPartGradient(tg->second, c.x0, c.y0, c.x3, c.y3);
+            if (tailPat) cairo_set_source(cr, tailPat);
+            else setCol(cr, tg->second.to);
+        } else {
+            setCol(cr, skin.palette.tail);
+        }
         cairo_set_line_width(cr, outlineOnly ? (width + BlackOutlineW * 2.0) : width);
         cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND);
         cairo_set_line_join(cr, CAIRO_LINE_JOIN_ROUND);
         cairo_move_to(cr, c.x0, c.y0);
         cairo_curve_to(cr, c.x1, c.y1, c.x2, c.y2, c.x3, c.y3);
         cairo_stroke(cr);
+        if (tailPat) cairo_pattern_destroy(tailPat);
         if (art) {
             // Everything below lands only on the tail's own pixels.
             cairo_set_operator(cr,CAIRO_OPERATOR_ATOP);
@@ -1682,9 +1856,10 @@ private:
         float tipDx = std::sin(foldAngle) * earLen;
         float tipDy = -std::cos(foldAngle) * earLen;
 
-        Pt inB  = projectHead3D(sign * b.earInX, b.earInY, 0.0f, yawRad, pitchRad);
-        Pt outB = projectHead3D(sign * b.earOutX, b.earOutY, -2.0f, yawRad, pitchRad);
-        Pt tip  = projectHead3D(sign * b.earTipX + tipDx, b.earTipY + tipDy, -3.0f, yawRad, pitchRad);
+        float earShiftX = (b.earInX + b.earOutX) * 0.5f * (skin.shape.earSpacing - 1.0f);
+        Pt inB  = projectHead3D(sign * (b.earInX + earShiftX), b.earInY, 0.0f, yawRad, pitchRad);
+        Pt outB = projectHead3D(sign * (b.earOutX + earShiftX), b.earOutY, -2.0f, yawRad, pitchRad);
+        Pt tip  = projectHead3D(sign * (b.earTipX + earShiftX) + tipDx, b.earTipY + tipDy, -3.0f, yawRad, pitchRad);
         float es = skin.shape.earSize;
         if (es != 1.0f) { // grow / shrink around the middle of the ear base
             Pt m = { (inB.x + outB.x) * 0.5f, (inB.y + outB.y) * 0.5f };
@@ -1720,8 +1895,15 @@ private:
             cairo_stroke(cr);
             return;
         }
-        setCol(cr, skin.palette.earOuter);
-        cairo_fill(cr);
+        SkinSpace space = isLeft ? SkinSpace::LeftEar : SkinSpace::RightEar;
+        const char* earKey = isLeft ? "leftEar" : "rightEar";
+        if (auto eg = skin.partGradients.find(earKey); eg != skin.partGradients.end()) {
+            Pt earMid = { (inB.x + outB.x) * 0.5f, (inB.y + outB.y) * 0.5f };
+            fillClampedPartGradient(cr, eg->second, earMid.x, earMid.y, tip.x, tip.y);
+        } else {
+            setCol(cr, skin.palette.earOuter);
+            cairo_fill(cr);
+        }
 
         if (skin.palette.earInner.set) {
             Pt inI  = { inB.x + (tip.x - inB.x) * 0.24f + sign * 3.0f, inB.y + (tip.y - inB.y) * 0.16f };
@@ -1736,7 +1918,6 @@ private:
             cairo_fill(cr);
         }
 
-        SkinSpace space = isLeft ? SkinSpace::LeftEar : SkinSpace::RightEar;
         if (skin.hasPartArt(space)) {
             // Ear space: (-50,0) inner base, (50,0) outer base, (0,-100) tip; mirrored per ear.
             Pt m = { (inB.x + outB.x) * 0.5f, (inB.y + outB.y) * 0.5f };
@@ -1786,19 +1967,23 @@ private:
 
         float cheekShift = yaw * 3.0f;
         float crownDrop = pitch * 2.0f;
-        float cheekHalfW = b.cheekHalfW * skin.shape.cheekFullness;
-        float crownCtrlW = b.crownCtrlW;
-        float crownBaseY = b.crownBaseY;
-        float cheekY = b.cheekY;
-        float cheekCtrlTopY = b.cheekCtrlTopY;
-        float neckPinchX = b.neckPinchX;
-        float neckCtrlY = b.neckCtrlY;
-        float hipHalfW = b.hipHalfW;
-        float waistCtrlW = b.waistCtrlW;
-        float waistCtrlY = b.waistCtrlY;
-        float botOuterW = b.botOuterW;
-        float botInnerW = b.botInnerW;
-        float botHalfW = b.botHalfW;
+        bool isClassic = isClassicBlack(skin) || (skin.builtIn && skin.id == "builtin:1") || isBuiltInPatterned(skin);
+        float sharedSleep = isClassic ? lieS : 0.0f;
+        const Build& sb = standardBuild();
+        auto shLerp = [&](float a, float d) -> float { return a + (d - a) * sharedSleep; };
+        float cheekHalfW = shLerp(b.cheekHalfW, sb.cheekHalfW) * skin.shape.cheekFullness;
+        float crownCtrlW = shLerp(b.crownCtrlW, sb.crownCtrlW);
+        float crownBaseY = shLerp(b.crownBaseY, sb.crownBaseY);
+        float cheekY = shLerp(b.cheekY, sb.cheekY);
+        float cheekCtrlTopY = shLerp(b.cheekCtrlTopY, sb.cheekCtrlTopY);
+        float neckPinchX = shLerp(b.neckPinchX, sb.neckPinchX);
+        float neckCtrlY = shLerp(b.neckCtrlY, sb.neckCtrlY);
+        float hipHalfW = shLerp(b.hipHalfW, sb.hipHalfW);
+        float waistCtrlW = shLerp(b.waistCtrlW, sb.waistCtrlW);
+        float waistCtrlY = shLerp(b.waistCtrlY, sb.waistCtrlY);
+        float botOuterW = shLerp(b.botOuterW, sb.botOuterW);
+        float botInnerW = shLerp(b.botInnerW, sb.botInnerW);
+        float botHalfW = shLerp(b.botHalfW, sb.botHalfW);
         float lCX = -cheekHalfW + cheekShift * 0.4f;
         float rCX =  cheekHalfW + cheekShift * 0.4f;
 
@@ -1884,7 +2069,7 @@ private:
                 setCol(cr, pal.earOuter); cairo_set_line_width(cr, 1.0); cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND); cairo_stroke(cr); cairo_restore(cr);
             }
         }
-        if (pal.bodyShade.set || skin.colorpoint() || hasRegions || hasMarks || isBuiltInPatterned(skin)) {
+        if (pal.bodyShade.set || pal.headBody.set || skin.partGradients.count("body") || skin.partGradients.count("head") || skin.colorpoint() || hasRegions || hasMarks || isBuiltInPatterned(skin)) {
             cairo_save(cr);
             buildPath();
             cairo_clip(cr);
@@ -1898,15 +2083,28 @@ private:
                 cairo_pattern_destroy(bg);
             }
 
-            // Curve regions: head/skull above the jaw line, body below it.
-            for (const SkinRegion& r : skin.regions) {
-                if (r.space != SkinSpace::Head && r.space != SkinSpace::Skull && r.space != SkinSpace::Body) continue;
+            if (auto bg = skin.partGradients.find("body"); bg != skin.partGradients.end()) {
                 cairo_save(cr);
-                jawSide(cr, r.space != SkinSpace::Body, skin, headCenter, physics);
+                jawSide(cr, false, skin, headCenter, physics);
                 cairo_clip(cr);
-                if (r.space == SkinSpace::Body) drawRegion(cr, r, bodyMap);
-                else if (r.space == SkinSpace::Skull) drawRegion(cr, r, skullMap);
-                else drawRegion(cr, r, headMap);
+                paintClampedPartGradient(cr, bg->second, seatX, seatY - 78.0, seatX, seatY + 16.0);
+                cairo_restore(cr);
+            }
+
+            if (pal.headBody.set) {
+                cairo_save(cr);
+                jawSide(cr, true, skin, headCenter, physics);
+                cairo_clip(cr);
+                setCol(cr, pal.headBody);
+                cairo_paint(cr);
+                cairo_restore(cr);
+            }
+
+            if (auto hg = skin.partGradients.find("head"); hg != skin.partGradients.end()) {
+                cairo_save(cr);
+                jawSide(cr, true, skin, headCenter, physics);
+                cairo_clip(cr);
+                paintClampedPartGradient(cr, hg->second, headCenter.x, headCenter.y - 44.0, headCenter.x, headCenter.y + 40.0);
                 cairo_restore(cr);
             }
 
@@ -1956,13 +2154,48 @@ private:
                 cairo_restore(cr);
             }
 
+            // Curve regions: body regions below the jaw line first, then head/skull above it.
+            for (const SkinRegion& r : skin.regions) {
+                if (r.space != SkinSpace::Body) continue;
+                cairo_save(cr);
+                jawSide(cr, false, skin, headCenter, physics);
+                cairo_clip(cr);
+                drawRegion(cr, r, bodyMap);
+                cairo_restore(cr);
+            }
+            for (const SkinRegion& r : skin.regions) {
+                if (r.space != SkinSpace::Head && r.space != SkinSpace::Skull) continue;
+                cairo_save(cr);
+                jawSide(cr, true, skin, headCenter, physics);
+                cairo_clip(cr);
+                if (r.space == SkinSpace::Skull) drawRegion(cr, r, skullMap);
+                else drawRegion(cr, r, headMap);
+                cairo_restore(cr);
+            }
+
             if (isBuiltInPatterned(skin)) {
                 drawBuiltInCoatMarks(cr, seatX, seatY, headCenter, physics, isBuiltInOrangeWhite(skin));
             } else {
                 for (const SkinMark& m : skin.marks) {
-                    if (m.space == SkinSpace::Body) drawMark(cr, m, bodyMap);
-                    else if (m.space == SkinSpace::Skull) drawMark(cr, m, skullMap);
-                    else if (m.space == SkinSpace::Head) drawMark(cr, m, headMap);
+                    if (m.space == SkinSpace::Body) {
+                        cairo_save(cr);
+                        jawSide(cr, false, skin, headCenter, physics);
+                        cairo_clip(cr);
+                        drawMark(cr, m, bodyMap);
+                        cairo_restore(cr);
+                    } else if (m.space == SkinSpace::Skull || m.space == SkinSpace::Head) {
+                        if (shouldSkipJawHeadClip(m)) {
+                            if (m.space == SkinSpace::Skull) drawMark(cr, m, skullMap);
+                            else drawMark(cr, m, headMap);
+                        } else {
+                            cairo_save(cr);
+                            jawSide(cr, true, skin, headCenter, physics);
+                            cairo_clip(cr);
+                            if (m.space == SkinSpace::Skull) drawMark(cr, m, skullMap);
+                            else drawMark(cr, m, headMap);
+                            cairo_restore(cr);
+                        }
+                    }
                 }
             }
             cairo_restore(cr);
@@ -2000,8 +2233,8 @@ private:
             cairo_fill(cr);
         }
 
-        if (!isClassicBlackRim(skin)) {
-            setCol(cr, skin.colorpoint() ? pal.body : pal.crease, 0.56);
+        if (!isClassicBlackRim(skin) && (1.0 - sharedSleep) > 0.01) {
+            setCol(cr, skin.colorpoint() ? pal.body : pal.crease, 0.56 * (1.0 - sharedSleep));
             cairo_set_line_width(cr, 1.3);
             cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND);
             cairo_new_path(cr);
@@ -2028,17 +2261,153 @@ private:
 
     // MARK: - 3rd Key Hind Foot
 
-    static void drawHindFoot(cairo_t* cr, float seatX, float seatY, const CatPhysics& physics, const SkinSpec& skin) {
-        Pt hip = { seatX + 26.0f * skin.shape.bodyWidth, seatY + 2.0f };
-        Pt target = physics.hindFoot.point();
-        Pt mid = { (hip.x + target.x) * 0.5f + 10.0f, (hip.y + target.y) * 0.5f - 8.0f };
-        drawLimb(cr, hip, mid, target, 15.0f, 12.0f, true, 0.85f * physics.hindFootActive.value, skin);
+    static void drawHindFoot(cairo_t* cr, float seatX, float seatY, const CatPhysics& physics, const SkinSpec& skin, bool outlineOnly = false) {
+        float hlRX = skin.shape.hindLegRootX;
+        float hlRY = skin.shape.hindLegRootY;
+        float hlW = skin.shape.hindLegWidth;
+        float hlReach = skin.shape.hindLegReach;
+        Pt hip = { seatX + 26.0f * skin.shape.bodyWidth + hlRX, seatY + 2.0f + hlRY };
+        Pt rawT = physics.hindFoot.point();
+        Pt target = {
+            hip.x + (rawT.x - hip.x) * hlReach,
+            hip.y + (rawT.y - hip.y) * hlReach
+        };
+        Pt mid = { (hip.x + target.x) * 0.5f + 10.0f * hlReach, (hip.y + target.y) * 0.5f - 8.0f * hlReach };
+        drawLimb(cr, hip, mid, target, 15.0f * hlW, 12.0f * hlW, true, 0.85f * physics.hindFootActive.value, skin, false, outlineOnly);
     }
 
     // MARK: - 2.5D Eyes & Whiskers
 
+    static void drawMusicHeadphones(cairo_t* cr, Pt center, const CatPhysics& physics, EyeColorTheme eyeTheme, const SkinSpec& skin) {
+        double t = std::clamp((double)physics.musicIntensity, 0.0, 1.0);
+        double pop = t * t * (3.0 - 2.0 * t);
+        if (pop < 0.01) return;
+
+        cairo_save(cr);
+        cairo_translate(cr, center.x, center.y + (1.0 - pop) * -14.0);
+        cairo_rotate(cr, (double)physics.headTilt.value);
+        double hs = (double)skin.shape.headScale;
+        if (hs != 1.0) cairo_scale(cr, hs, hs);
+
+        double cf = (double)skin.shape.cheekFullness;
+        double yawShift = (double)physics.headYaw.value * 2.5;
+        double earX = 43.0 * cf;
+        double earY = 2.0;
+        double crownY = -36.5;
+        double beatPulse = 0.72 + 0.28 * std::fabs(std::sin((double)physics.musicPhase));
+        RGBA eyeC = eyePrimary(eyeTheme);
+
+        // 1. Over-head arch band
+        cairo_new_path(cr);
+        cairo_move_to(cr, -earX + yawShift * 0.4, earY - 4.0);
+        cairo_curve_to(cr, -earX * 0.94 + yawShift * 0.2, crownY - 7.5,
+                            earX * 0.94 + yawShift * 0.2, crownY - 7.5,
+                            earX + yawShift * 0.4, earY - 4.0);
+        cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND);
+        cairo_set_source_rgba(cr, 0.16, 0.17, 0.21, 0.98 * pop);
+        cairo_set_line_width(cr, 6.2);
+        cairo_stroke_preserve(cr);
+        cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, 0.22 * pop);
+        cairo_set_line_width(cr, 1.6);
+        cairo_stroke(cr);
+
+        // 2. Left & right cushioned over-ear cups
+        for (double side : { -1.0, 1.0 }) {
+            cairo_save(cr);
+            cairo_translate(cr, side * earX + yawShift * 0.55, earY);
+            cairo_rotate(cr, side * -0.10);
+
+            cairo_save(cr);
+            cairo_translate(cr, -side * 1.5, 0.0);
+            cairo_scale(cr, 5.2, 12.0);
+            cairo_arc(cr, 0.0, 0.0, 1.0, 0.0, 2.0 * M_PI);
+            cairo_restore(cr);
+            cairo_set_source_rgba(cr, 0.10, 0.11, 0.14, 0.96 * pop);
+            cairo_fill(cr);
+
+            cairo_save(cr);
+            cairo_translate(cr, side * 2.0, 0.0);
+            cairo_scale(cr, 6.6, 13.2);
+            cairo_arc(cr, 0.0, 0.0, 1.0, 0.0, 2.0 * M_PI);
+            cairo_restore(cr);
+            cairo_set_source_rgba(cr, 0.21, 0.23, 0.28, 0.99 * pop);
+            cairo_fill(cr);
+
+            cairo_save(cr);
+            cairo_translate(cr, side * 2.4, 0.0);
+            cairo_scale(cr, 4.0, 8.2);
+            cairo_arc(cr, 0.0, 0.0, 1.0, 0.0, 2.0 * M_PI);
+            cairo_restore(cr);
+            cairo_set_source_rgba(cr, eyeC.r, eyeC.g, eyeC.b, 0.88 * beatPulse * pop);
+            cairo_set_line_width(cr, 1.7);
+            cairo_stroke(cr);
+
+            cairo_restore(cr);
+        }
+
+        // 3. Floating vector musical notes
+        struct NoteCfg { double side; double off; bool dbl; };
+        const NoteCfg notes[3] = { { -1.0, 0.00, false }, { 1.0, 0.36, true }, { -1.0, 0.68, true } };
+        for (const NoteCfg& nc : notes) {
+            double raw = std::fmod((double)physics.musicPhase * 0.14 + nc.off, 1.0);
+            double cyc = raw < 0.0 ? raw + 1.0 : raw;
+            double fadeIn = std::min(1.0, cyc / 0.18);
+            double fadeOut = std::min(1.0, (1.0 - cyc) / 0.26);
+            double alpha = fadeIn * fadeOut * 0.92 * pop;
+            if (alpha < 0.03) continue;
+            double nx = nc.side * (earX + 10.0) + std::sin(cyc * 6.2832 + nc.off * 4.0) * 5.5;
+            double ny = earY - 12.0 - cyc * 44.0;
+            double nScale = 0.78 + 0.28 * std::sin(cyc * 3.1416);
+
+            cairo_save(cr);
+            cairo_translate(cr, nx, ny);
+            cairo_scale(cr, nScale, nScale);
+            for (int pass = 0; pass < 2; ++pass) {
+                cairo_save(cr);
+                if (pass == 0) {
+                    cairo_translate(cr, 0.8, 1.0);
+                    cairo_set_source_rgba(cr, 0.10, 0.11, 0.15, alpha * 0.65);
+                } else {
+                    cairo_set_source_rgba(cr, eyeC.r, eyeC.g, eyeC.b, alpha);
+                }
+                cairo_set_line_width(cr, 1.6);
+                cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND);
+                cairo_set_line_join(cr, CAIRO_LINE_JOIN_ROUND);
+
+                cairo_save(cr);
+                cairo_translate(cr, -0.6, -0.3);
+                cairo_scale(cr, 2.6, 1.9);
+                cairo_arc(cr, 0.0, 0.0, 1.0, 0.0, 2.0 * M_PI);
+                cairo_restore(cr);
+                cairo_fill(cr);
+
+                cairo_new_path(cr);
+                cairo_move_to(cr, 1.6, -0.6);
+                cairo_line_to(cr, 1.6, -11.5);
+                if (nc.dbl) {
+                    cairo_line_to(cr, 8.4, -13.2);
+                    cairo_line_to(cr, 8.4, -2.4);
+                    cairo_stroke(cr);
+                    cairo_save(cr);
+                    cairo_translate(cr, 6.2, -2.1);
+                    cairo_scale(cr, 2.6, 1.9);
+                    cairo_arc(cr, 0.0, 0.0, 1.0, 0.0, 2.0 * M_PI);
+                    cairo_restore(cr);
+                    cairo_fill(cr);
+                } else {
+                    cairo_curve_to(cr, 4.4, -11.0, 6.0, -9.4, 6.2, -7.5);
+                    cairo_stroke(cr);
+                }
+                cairo_restore(cr);
+            }
+            cairo_restore(cr);
+        }
+
+        cairo_restore(cr);
+    }
+
     static void drawHeadFeatures(cairo_t* cr, Pt center, const CatPhysics& physics, EyeColorTheme eyeTheme, const SkinSpec& skin,
-                                 double scruffStartle = 0.0, double scruffWide = 0.0) {
+                                 double scruffStartle = 0.0, double scruffWide = 0.0, bool overrideSkinIris = false) {
         cairo_save(cr);
         cairo_translate(cr, center.x, center.y);
         cairo_rotate(cr, physics.headTilt.value);
@@ -2053,8 +2422,8 @@ private:
             return;
         }
 
-        drawEye3D(cr, true, yawRad, pitchRad, physics, eyeTheme, skin, scruffStartle, scruffWide);
-        drawEye3D(cr, false, yawRad, pitchRad, physics, eyeTheme, skin, scruffStartle, scruffWide);
+        drawEye3D(cr, true, yawRad, pitchRad, physics, eyeTheme, skin, scruffStartle, scruffWide, overrideSkinIris);
+        drawEye3D(cr, false, yawRad, pitchRad, physics, eyeTheme, skin, scruffStartle, scruffWide, overrideSkinIris);
         if (skin.palette.nose.set) {
             Pt nose = projectHead3D(0.0f, 8.2f, 29.0f, yawRad, pitchRad);
             cairo_new_path(cr);
@@ -2066,7 +2435,7 @@ private:
             setCol(cr, skin.palette.nose);
             cairo_fill(cr);
         }
-        if (skin.palette.mouth.set && physics.yawnAmount < 0.15f) {
+        if (skin.palette.mouth.set && skin.palette.mouth.a >= 0.01 && physics.yawnAmount < 0.15f) {
             Pt mL = projectHead3D(-4.2f, 12.2f, 28.4f, yawRad, pitchRad);
             Pt mM = projectHead3D(0.0f, 11.2f, 28.8f, yawRad, pitchRad);
             Pt mR = projectHead3D(4.2f, 12.2f, 28.4f, yawRad, pitchRad);
@@ -2114,16 +2483,17 @@ private:
     static void drawYawnMouth(cairo_t* cr, float yawRad, float pitchRad, float yawn, const SkinSpec& skin) {
         double y = std::clamp(yawn, 0.0f, 1.0f);
         Pt c = projectHead3D(0.0f, (float)(16.2 + y * 2.2), 30.2f, yawRad, pitchRad);
-        double rx = 3.2 + y * 5.8;
-        double ry = 1.6 + y * 7.4;
+        double rx = 3.0 + y * 6.2;
+        double ry = 1.6 + y * 8.2;
 
+        // Wide upper lip, narrower rounded lower jaw — true inverted-triangle (▼) cute cat yawn
         auto mouthPath = [&]() {
             cairo_new_path(cr);
-            cairo_move_to(cr, 0.0, -ry * 0.92);
-            cairo_curve_to(cr, rx * 0.68, -ry * 0.92, rx * 1.05, -ry * 0.42, rx, ry * 0.08);
-            cairo_curve_to(cr, rx * 0.95, ry * 0.72, rx * 0.50, ry, 0.0, ry);
-            cairo_curve_to(cr, -rx * 0.50, ry, -rx * 0.95, ry * 0.72, -rx, ry * 0.08);
-            cairo_curve_to(cr, -rx * 1.05, -ry * 0.42, -rx * 0.68, -ry * 0.92, 0.0, -ry * 0.92);
+            cairo_move_to(cr, 0.0, -ry * 0.86);
+            cairo_curve_to(cr, rx * 0.62, -ry * 0.88, rx * 1.06, -ry * 0.64, rx * 0.96, -ry * 0.18);
+            cairo_curve_to(cr, rx * 0.84, ry * 0.34, rx * 0.42, ry * 0.96, 0.0, ry * 1.02);
+            cairo_curve_to(cr, -rx * 0.42, ry * 0.96, -rx * 0.84, ry * 0.34, -rx * 0.96, -ry * 0.18);
+            cairo_curve_to(cr, -rx * 1.06, -ry * 0.64, -rx * 0.62, -ry * 0.88, 0.0, -ry * 0.86);
             cairo_close_path(cr);
         };
 
@@ -2131,53 +2501,86 @@ private:
         cairo_translate(cr, c.x, c.y);
 
         mouthPath();
-        cairo_set_source_rgba(cr, 0.78, 0.19, 0.25, 0.98);
+        cairo_set_source_rgba(cr, 0.76, 0.18, 0.24, 0.98);
         cairo_fill(cr);
 
         cairo_save(cr);
         mouthPath();
         cairo_clip(cr);
 
+        // Inner upper-palate cavity shadow
         cairo_save(cr);
-        cairo_translate(cr, 0.0, -ry * 0.26);
-        cairo_scale(cr, rx * 0.65, ry * 0.46);
-        cairo_set_source_rgba(cr, 0.55, 0.10, 0.16, 0.55);
+        cairo_translate(cr, 0.0, -ry * 0.33);
+        cairo_scale(cr, rx * 0.54, ry * 0.47);
+        cairo_set_source_rgba(cr, 0.48, 0.08, 0.14, 0.60);
         cairo_arc(cr, 0.0, 0.0, 1.0, 0.0, PI * 2.0);
         cairo_fill(cr);
         cairo_restore(cr);
 
-        if (y > 0.22) {
-            double tAlpha = std::min(1.0, (y - 0.22) / 0.35);
-            cairo_set_source_rgba(cr, 0.95, 0.48, 0.55, 0.92 * tAlpha);
+        cairo_save(cr);
+        cairo_translate(cr, 0.0, -ry * 0.24);
+        cairo_scale(cr, rx * 0.34, ry * 0.28);
+        cairo_set_source_rgba(cr, 0.36, 0.05, 0.10, 0.40);
+        cairo_arc(cr, 0.0, 0.0, 1.0, 0.0, PI * 2.0);
+        cairo_fill(cr);
+        cairo_restore(cr);
+
+        // Cute pink tongue curling gently upward/forward from the wider lower jaw
+        if (y > 0.18) {
+            double tAlpha = std::min(1.0, (y - 0.18) / 0.32);
+            cairo_set_source_rgba(cr, 0.96, 0.48, 0.56, 0.95 * tAlpha);
             cairo_new_path(cr);
-            cairo_move_to(cr, -rx * 0.62, ry * 0.55);
-            quadCurveTo(cr, -rx * 0.62, ry * 0.55, -rx * 0.32, ry * 0.16, 0.0, ry * 0.36);
-            quadCurveTo(cr, 0.0, ry * 0.36, rx * 0.32, ry * 0.16, rx * 0.62, ry * 0.55);
-            quadCurveTo(cr, rx * 0.62, ry * 0.55, 0.0, ry * 1.25, -rx * 0.62, ry * 0.55);
+            cairo_move_to(cr, -rx * 0.72, ry * 0.62);
+            cairo_curve_to(cr, -rx * 0.66, ry * 0.14, -rx * 0.26, ry * 0.06, 0.0, ry * 0.22);
+            cairo_curve_to(cr, rx * 0.26, ry * 0.06, rx * 0.66, ry * 0.14, rx * 0.72, ry * 0.62);
+            quadCurveTo(cr, rx * 0.72, ry * 0.62, 0.0, ry * 1.24, -rx * 0.72, ry * 0.62);
             cairo_close_path(cr);
             cairo_fill(cr);
+
+            cairo_save(cr);
+            cairo_translate(cr, 0.0, ry * 0.28);
+            cairo_scale(cr, rx * 0.34, ry * 0.12);
+            cairo_set_source_rgba(cr, 1.0, 0.72, 0.78, 0.48 * tAlpha);
+            cairo_arc(cr, 0.0, 0.0, 1.0, 0.0, PI * 2.0);
+            cairo_fill(cr);
+            cairo_restore(cr);
+
+            cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND);
+            cairo_set_source_rgba(cr, 0.78, 0.25, 0.34, 0.50 * tAlpha);
+            cairo_set_line_width(cr, 0.85);
+            cairo_new_path(cr);
+            cairo_move_to(cr, 0.0, ry * 0.22);
+            cairo_line_to(cr, 0.0, ry * 0.50);
+            cairo_stroke(cr);
+
+            cairo_set_source_rgba(cr, 0.72, 0.20, 0.29, 0.45 * tAlpha);
+            cairo_set_line_width(cr, 0.95);
+            cairo_new_path(cr);
+            cairo_move_to(cr, -rx * 0.42, ry * 0.56);
+            quadCurveTo(cr, -rx * 0.42, ry * 0.56, 0.0, ry * 0.42, rx * 0.42, ry * 0.56);
+            cairo_stroke(cr);
         }
 
         if (y > 0.28) {
             double fScale = std::min(1.0, (y - 0.28) / 0.32);
             cairo_set_source_rgba(cr, 1.0, 0.99, 0.96, 0.98);
-            double uBaseY = -ry * 0.80, uLen = (2.6 + y * 2.2) * fScale, uHW = (1.15 + y * 0.55) * fScale;
+            double uBaseY = -ry * 0.68, uLen = (2.1 + y * 1.9) * fScale, uHW = (0.95 + y * 0.42) * fScale;
             for (double sign : { -1.0, 1.0 }) {
-                double fx = sign * rx * 0.46;
+                double fx = sign * rx * 0.26;
                 cairo_new_path(cr);
                 cairo_move_to(cr, fx - uHW, uBaseY - 0.8);
                 cairo_line_to(cr, fx + uHW, uBaseY - 0.8);
-                cairo_line_to(cr, fx - sign * 0.25, uBaseY + uLen);
+                cairo_line_to(cr, fx - sign * 0.18, uBaseY + uLen);
                 cairo_close_path(cr);
                 cairo_fill(cr);
             }
-            double lBaseY = ry * 0.84, lLen = (1.6 + y * 1.3) * fScale, lHW = (0.85 + y * 0.35) * fScale;
+            double lBaseY = ry * 0.84, lLen = (1.4 + y * 1.2) * fScale, lHW = (0.78 + y * 0.30) * fScale;
             for (double sign : { -1.0, 1.0 }) {
-                double fx = sign * rx * 0.36;
+                double fx = sign * rx * 0.42;
                 cairo_new_path(cr);
                 cairo_move_to(cr, fx - lHW, lBaseY + 0.8);
                 cairo_line_to(cr, fx + lHW, lBaseY + 0.8);
-                cairo_line_to(cr, fx - sign * 0.15, lBaseY - lLen);
+                cairo_line_to(cr, fx - sign * 0.12, lBaseY - lLen);
                 cairo_close_path(cr);
                 cairo_fill(cr);
             }
@@ -2211,11 +2614,14 @@ private:
     }
 
     static void drawEye3D(cairo_t* cr, bool isLeft, float yawRad, float pitchRad, const CatPhysics& physics, EyeColorTheme eyeTheme, const SkinSpec& skin,
-                          double scruffStartle = 0.0, double scruffWide = 0.0) {
+                          double scruffStartle = 0.0, double scruffWide = 0.0, bool overrideSkinIris = false) {
         float sign = isLeft ? -1.0f : 1.0f;
-        bool customIris = skin.palette.iris.set; // a skin's iris overrides the eye-colour menu
-        const SkinColor& iris = skin.palette.iris;
-        RGBA eyeCol = customIris ? RGBA{iris.r, iris.g, iris.b, iris.a} : eyePrimary(eyeTheme);
+        const SkinColor& sideIris = isLeft ? skin.palette.irisLeft : skin.palette.irisRight;
+        const SkinColor& activeIris = sideIris.set ? sideIris : skin.palette.iris;
+        bool customIris = !overrideSkinIris && activeIris.set; // custom skin iris unless user explicitly switched eye color
+        RGBA eyeCol = customIris ? RGBA{activeIris.r, activeIris.g, activeIris.b, activeIris.a} : eyePrimary(eyeTheme);
+        const SkinColor& sidePupil = isLeft ? skin.palette.pupilLeft : skin.palette.pupilRight;
+        const SkinColor& activePupil = sidePupil.set ? sidePupil : skin.palette.pupil;
         Pt proj = projectHead3D(sign * 17.2f, -2.0f, 27.5f, yawRad, pitchRad);
 
         float eyeNormal = yawRad + sign * 0.34f;
@@ -2227,7 +2633,7 @@ private:
         cairo_scale(cr, foreX, foreY);
 
         // Mode 0: Dizzy spinning spiral eyes (@ @) — appear AFTER initial golden stars warning (>0.28)
-        float dizzy = std::clamp(physics.dizzyIntensity.value, 0.0f, 1.0f);
+        float dizzy = std::clamp(std::max(physics.dizzyIntensity.value, physics.scruffDizzyIntensity.value), 0.0f, 1.0f);
         if (dizzy > 0.28f) {
             cairo_set_source_rgba(cr, 0.98, 0.98, 0.96, 0.95);
             cairo_new_path(cr);
@@ -2253,15 +2659,10 @@ private:
         auto colorLuma = [](const SkinColor& c) -> double {
             return 0.299 * c.r + 0.587 * c.g + 0.114 * c.b;
         };
-        double bodyLuma = colorLuma(skin.palette.body);
+        double bodyLuma = colorLuma(skin.palette.headBody.set ? skin.palette.headBody : skin.palette.body);
         double pointsLuma = skin.palette.points.set ? colorLuma(skin.palette.points) : 1.0;
-        double outlineLuma = skin.palette.outline.set ? colorLuma(skin.palette.outline) : 1.0;
         bool isDarkEyeArea = bodyLuma < 0.28 || (skin.colorpoint() && pointsLuma < 0.38);
-        RGBA closedLidCol = isDarkEyeArea
-            ? eyeCol
-            : (skin.palette.outline.set && outlineLuma < 0.42
-                ? RGBA{ skin.palette.outline.r, skin.palette.outline.g, skin.palette.outline.b, 0.90 }
-                : RGBA{ 60.0 / 255.0, 50.0 / 255.0, 44.0 / 255.0, 0.88 });
+        RGBA closedLidCol = eyeCol;
 
         if (physics.isHappyClosedEyes()) {
             setCol(cr, closedLidCol);
@@ -2381,7 +2782,7 @@ private:
                 cairo_fill(cr);
             }
         }
-        setCol(cr, catBlack);
+        if (activePupil.set) setCol(cr, activePupil); else setCol(cr, catBlack);
         cairo_new_path(cr);
         fillEllipse(cr, px, py, pupilW * 0.5, pupilH * 0.5);
         cairo_fill(cr);
@@ -2457,10 +2858,56 @@ private:
         return cairo_image_surface_get_width(s) > 0 ? s : nullptr;
     }
 
+    static constexpr int anchorBit(SkinAnchorPoint a) {
+        switch (a) {
+            case SkinAnchorPoint::HeadTop: return 1;
+            case SkinAnchorPoint::Face:    return 2;
+            case SkinAnchorPoint::Neck:    return 4;
+            case SkinAnchorPoint::TailTip: return 8;
+        }
+        return 0;
+    }
+
+    static cairo_pattern_t* createPartGradient(const SkinPartGradient& pg, double x0, double y0, double x1, double y1) {
+        if (std::hypot(x1 - x0, y1 - y0) < 1.0) return nullptr;
+        double stop = std::clamp((double)pg.stop, 0.1, 0.9);
+        cairo_pattern_t* pat = cairo_pattern_create_linear(x0, y0, x1, y1);
+        cairo_pattern_add_color_stop_rgba(pat, 0.0,  pg.from.r, pg.from.g, pg.from.b, pg.from.a);
+        cairo_pattern_add_color_stop_rgba(pat, stop, pg.to.r,   pg.to.g,   pg.to.b,   pg.to.a);
+        cairo_pattern_add_color_stop_rgba(pat, 1.0,  pg.to.r,   pg.to.g,   pg.to.b,   pg.to.a);
+        cairo_pattern_set_extend(pat, CAIRO_EXTEND_PAD);
+        return pat;
+    }
+
+    static void fillClampedPartGradient(cairo_t* cr, const SkinPartGradient& pg, double x0, double y0, double x1, double y1) {
+        cairo_pattern_t* pat = createPartGradient(pg, x0, y0, x1, y1);
+        if (!pat) {
+            setCol(cr, pg.to);
+            cairo_fill(cr);
+            return;
+        }
+        cairo_set_source(cr, pat);
+        cairo_fill(cr);
+        cairo_pattern_destroy(pat);
+    }
+
+    static void paintClampedPartGradient(cairo_t* cr, const SkinPartGradient& pg, double x0, double y0, double x1, double y1) {
+        cairo_pattern_t* pat = createPartGradient(pg, x0, y0, x1, y1);
+        if (!pat) {
+            setCol(cr, pg.to);
+            cairo_paint(cr);
+            return;
+        }
+        cairo_set_source(cr, pat);
+        cairo_paint(cr);
+        cairo_pattern_destroy(pat);
+    }
+
     static void drawDecorations(cairo_t* cr, float seatX, float seatY, Pt head, const CatPhysics& physics, const SkinSpec& skin,
-                                const Pt* neckOverride = nullptr, const Pt* tailTipOverride = nullptr) {
+                                const Pt* neckOverride = nullptr, const Pt* tailTipOverride = nullptr, int anchorMask = 0xF) {
         float yawRad = physics.headYaw.value * 0.50f, pitchRad = physics.headPitch.value * 0.36f;
         for (const SkinDecoration& d : skin.decorations) {
+            if ((anchorMask & anchorBit(d.anchor)) == 0) continue;
             cairo_surface_t* img = decorationSurface(d);
             if (!img) continue;
             Pt at;
@@ -2480,7 +2927,11 @@ private:
                         at = { neckOverride->x + d.offsetX, neckOverride->y + d.offsetY };
                         rot = 0.0;
                     } else {
-                        at = bodyPoint({d.offsetX, -64.0f + d.offsetY}, skin, seatX, seatY, physics);
+                        Pt baseNeck = bodyPoint({0.0f, -64.0f}, skin, seatX, seatY, physics);
+                        float minChinNeckY = head.y + 36.0f * skin.shape.headScale;
+                        float chinDrop = std::max(0.0f, minChinNeckY - baseNeck.y);
+                        Pt rawPt = bodyPoint({d.offsetX, -64.0f + d.offsetY}, skin, seatX, seatY, physics);
+                        at = { rawPt.x, rawPt.y + chinDrop };
                         rot = physics.bodyTilt.value;
                     }
                     break;
@@ -2508,7 +2959,7 @@ private:
 
     // MARK: - Front Paws
 
-    static void drawFrontPaws(cairo_t* cr, float seatX, float seatY, float breath, const CatPhysics& physics, const SkinSpec& skin) {
+    static void drawFrontPaws(cairo_t* cr, float seatX, float seatY, float breath, const CatPhysics& physics, const SkinSpec& skin, bool outlineOnly = false) {
         Pt lPos = physics.leftPaw.point();
         Pt rPos = physics.rightPaw.point();
         float lDist = std::hypot(lPos.x - CatPhysics::LeftPawRest.x, lPos.y - CatPhysics::LeftPawRest.y);
@@ -2519,48 +2970,72 @@ private:
         float headLift = b.headLift;
         float lie = std::clamp(physics.lieIntensity.value, 0.0f, 1.0f);
         float lieS = lie * lie * (3.0f - 2.0f * lie);
-        float idleTopY = seatY - b.idleTopDY + lieS * 24.0f;
-        float idleTopX = b.idleTopX * bw - lieS * 5.0f;
-        float idleBotX = b.idleBotX * bw - lieS * 4.5f;
-        float idleBotY = seatY + 12.0f - lieS * 4.0f;
-        float shX = b.shoulderX * bw;
+        float armSp = skin.shape.armSpacing;
+        float armLen = skin.shape.armLength;
+        float armRY = skin.shape.armRootY;
+        float shX = b.shoulderX * bw * armSp;
         float limbStartW = b.limbStartW;
         float limbEndW = b.limbEndW;
 
         const bool approved = !skin.palette.points.set && skin.palette.belly.set && skin.palette.belly.sameAs(skin.palette.legs) && !skin.idleLegsTinted && !skin.marks.empty();
-        const float shoulderDepth = approved ? 43.0f : 58.0f, faceClearance = approved ? 52.0f : 42.0f;
+        float shoulderDepth = std::max(16.0f, (approved ? 43.0f : 49.0f) - armRY);
+        const float faceClearance = approved ? 52.0f : 51.0f;
+        float tiltChinDrop = std::fabs(std::sin(physics.headTilt.value)) * 18.0f * skin.shape.headScale;
+        float scaledClearance = faceClearance * skin.shape.headScale + tiltChinDrop;
+        float headBottom = 126.0f + headLift + physics.headOffsetY.value + physics.headPitch.value * 4.8f
+                         + breath * 1.1f + lieS * 60.0f + scaledClearance;
+        double idleAlpha = 1.0 - smoothstepD(0.48, 0.78, (double)lieS);
         auto shoulder = [&](float x) -> Pt {
             float sy=physics.bodySquash.value*(1.0f-lieS*0.42f), sx=(1+(1-physics.bodySquash.value)*0.55f)*(1.0f+lieS*0.03f);
             float c=std::cos(physics.bodyTilt.value), s=std::sin(physics.bodyTilt.value);
-            float floor=126+headLift+physics.headOffsetY.value+physics.headPitch.value*4.8f+breath*1.1f+faceClearance;
-            return {seatX+x*sx*c+shoulderDepth*sy*s, std::max(seatY+x*sx*s-shoulderDepth*sy*c,floor)};
+            return {seatX+x*sx*c+shoulderDepth*sy*s, std::max(seatY+x*sx*s-shoulderDepth*sy*c, headBottom - std::max(0.0f, -armRY) * 0.6f)};
         };
         Pt lSh=shoulder(-shX), rSh=shoulder(shX);
+        // Align idle forearm root with typing shoulder(±shX) when awake; keep inward/downward tuck during sleep.
+        Pt lIdleTop = { lSh.x + lieS * 5.0f, lSh.y + lieS * 16.0f };
+        Pt rIdleTop = { rSh.x - lieS * 5.0f, rSh.y + lieS * 16.0f };
+        float idleBotX = b.idleBotX * bw * armSp - lieS * 4.5f;
+        float idleBotY = std::max(std::max(lIdleTop.y, rIdleTop.y) + 14.0f, (seatY + 12.0f + (armLen - 1.0f) * 16.0f) + lieS * 12.0f);
 
         if (lDist < 6.0f && !physics.leftPawOnMouse && !physics.leftPawTyping) {
-            if (lieS < 0.78f) drawIdleFrontLeg(cr, { seatX - idleTopX, idleTopY }, { seatX - idleBotX, idleBotY }, true, skin);
+            if (lieS < 0.78f) {
+                cairo_save(cr);
+                if (!outlineOnly && idleAlpha < 0.995) cairo_push_group(cr);
+                drawIdleFrontLeg(cr, lIdleTop, { seatX - idleBotX, idleBotY }, true, skin, outlineOnly);
+                if (!outlineOnly && idleAlpha < 0.995) { cairo_pop_group_to_source(cr); cairo_paint_with_alpha(cr, idleAlpha); }
+                cairo_restore(cr);
+            }
         } else {
-            Pt mid = { (lSh.x + lPos.x) * 0.5f - (physics.leftPawOnMouse ? 8.0f : 4.0f), (lSh.y + lPos.y) * 0.5f - 6.0f };
-            drawLimb(cr, lSh, mid, lPos, limbStartW, limbEndW, false, 0.78f, skin, true);
+            Pt mid = { (lSh.x + lPos.x) * 0.5f - (physics.leftPawOnMouse ? 8.0f : 4.0f),
+                       std::max((lSh.y + lPos.y) * 0.5f - 6.0f, headBottom - 1.0f) };
+            drawLimb(cr, lSh, mid, lPos, limbStartW, limbEndW, false, 0.78f, skin, true, outlineOnly);
         }
 
         if (rDist < 6.0f && !physics.rightPawTyping) {
-            if (lieS < 0.78f) drawIdleFrontLeg(cr, { seatX + idleTopX, idleTopY }, { seatX + idleBotX, idleBotY }, false, skin);
+            if (lieS < 0.78f) {
+                cairo_save(cr);
+                if (!outlineOnly && idleAlpha < 0.995) cairo_push_group(cr);
+                drawIdleFrontLeg(cr, rIdleTop, { seatX + idleBotX, idleBotY }, false, skin, outlineOnly);
+                if (!outlineOnly && idleAlpha < 0.995) { cairo_pop_group_to_source(cr); cairo_paint_with_alpha(cr, idleAlpha); }
+                cairo_restore(cr);
+            }
         } else {
-            Pt mid = { (rSh.x + rPos.x) * 0.5f + 4.0f, (rSh.y + rPos.y) * 0.5f - 6.0f };
-            drawLimb(cr, rSh, mid, rPos, limbStartW, limbEndW, true, 0.78f, skin, true);
+            Pt mid = { (rSh.x + rPos.x) * 0.5f + 4.0f,
+                       std::max((rSh.y + rPos.y) * 0.5f - 6.0f, headBottom - 1.0f) };
+            drawLimb(cr, rSh, mid, rPos, limbStartW, limbEndW, true, 0.78f, skin, true, outlineOnly);
         }
     }
 
-    static void drawIdleFrontLeg(cairo_t* cr, Pt top, Pt bottom, bool isLeft, const SkinSpec& skin) {
+    static void drawIdleFrontLeg(cairo_t* cr, Pt top, Pt bottom, bool isLeft, const SkinSpec& skin, bool outlineOnly = false) {
         if (skin.renderStyle == SkinRenderStyle::Dazed) {
             float sign = isLeft ? -1.0f : 1.0f;
-            Pt shoulder = { top.x + sign * 4.0f, top.y - 10.0f };
-            Pt elbow = { top.x + sign * 11.0f, top.y + 1.0f };
-            Pt paw = { top.x + sign * 10.0f, top.y + 15.0f };
-            drawLimb(cr, shoulder, elbow, paw, 19.0f, 14.0f, !isLeft, 0.78f, skin, true);
+            Pt shoulder = { top.x + sign * 2.0f, top.y + 13.0f };
+            Pt elbow = { top.x + sign * 9.0f, top.y + 20.0f };
+            Pt paw = { top.x + sign * 8.0f, top.y + 34.0f };
+            drawLimb(cr, shoulder, elbow, paw, 19.0f, 14.0f, !isLeft, 0.78f, skin, true, outlineOnly);
             return;
         }
+        if (outlineOnly) return;
         const SkinPalette& pal = skin.palette;
         float sign = isLeft ? -1.0f : 1.0f;
         if (skin.colorpoint()) {
@@ -2586,20 +3061,26 @@ private:
                 quadCurveTo(cr, bottom.x - sign * 6.0, bottom.y - 1.0, top.x - sign * 6.5, (top.y + bottom.y) * 0.5, top.x - sign * 7.0, top.y + 4.0);
                 cairo_close_path(cr);
             };
-            if (skin.idleLegsTinted) {
-            cairo_save(cr);
-            traceIdleLeg();
-            cairo_pattern_t* legGrad = cairo_pattern_create_linear(top.x, top.y, bottom.x, bottom.y + 5.0);
-            cairo_pattern_add_color_stop_rgba(legGrad, 0.04, pal.legs.r, pal.legs.g, pal.legs.b, 0.0);
-            cairo_pattern_add_color_stop_rgba(legGrad, 0.32, pal.legs.r, pal.legs.g, pal.legs.b, pal.legs.a);
-            cairo_pattern_add_color_stop_rgba(legGrad, 1.00, pal.legs.r, pal.legs.g, pal.legs.b, pal.legs.a);
-            cairo_set_source(cr, legGrad);
-            cairo_fill(cr);
-            cairo_pattern_destroy(legGrad);
-            cairo_restore(cr);
+            SkinSpace armSpace = isLeft ? SkinSpace::LeftArm : SkinSpace::RightArm;
+            const char* armKey = isLeft ? "leftArm" : "rightArm";
+            if (auto ag = skin.partGradients.find(armKey); ag != skin.partGradients.end()) {
+                cairo_save(cr);
+                traceIdleLeg();
+                fillClampedPartGradient(cr, ag->second, top.x, top.y, bottom.x, bottom.y + 5.0);
+                cairo_restore(cr);
+            } else if (skin.idleLegsTinted) {
+                cairo_save(cr);
+                traceIdleLeg();
+                cairo_pattern_t* legGrad = cairo_pattern_create_linear(top.x, top.y, bottom.x, bottom.y + 5.0);
+                cairo_pattern_add_color_stop_rgba(legGrad, 0.04, pal.legs.r, pal.legs.g, pal.legs.b, 0.0);
+                cairo_pattern_add_color_stop_rgba(legGrad, 0.32, pal.legs.r, pal.legs.g, pal.legs.b, pal.legs.a);
+                cairo_pattern_add_color_stop_rgba(legGrad, 1.00, pal.legs.r, pal.legs.g, pal.legs.b, pal.legs.a);
+                cairo_set_source(cr, legGrad);
+                cairo_fill(cr);
+                cairo_pattern_destroy(legGrad);
+                cairo_restore(cr);
             }
 
-            SkinSpace armSpace = isLeft ? SkinSpace::LeftArm : SkinSpace::RightArm;
             if (skin.hasPartArt(armSpace)) {
                 auto map = [&](SkinPoint p) -> Pt {
                     float t = std::clamp(p.x / 100.0f, 0.0f, 1.0f);
@@ -2641,7 +3122,7 @@ private:
         cairo_stroke(cr);
     }
 
-    static void drawLimb(cairo_t* cr, Pt start, Pt ctrl, Pt end, float startW, float endW, bool outlineOnLeft, float outlineAlpha, const SkinSpec& skin, bool frontPaw = false) {
+    static void drawLimb(cairo_t* cr, Pt start, Pt ctrl, Pt end, float startW, float endW, bool outlineOnLeft, float outlineAlpha, const SkinSpec& skin, bool frontPaw = false, bool outlineOnly = false) {
         const SkinPalette& pal = skin.palette;
         constexpr int steps = 14;
         std::vector<Pt> leftEdge, rightEdge;
@@ -2672,6 +3153,29 @@ private:
         };
 
         double pawR = endW * 0.58;
+        if (outlineOnly) {
+            if (!whiteOutlineEnabled()) return;
+            setCol(cr, blackOutline);
+            cairo_set_line_width(cr, BlackOutlineW * 2.0);
+            cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND);
+            cairo_set_line_join(cr, CAIRO_LINE_JOIN_ROUND);
+            cairo_new_path(cr);
+            cairo_move_to(cr, leftEdge[0].x, leftEdge[0].y);
+            for (int i = 1; i <= steps; ++i) cairo_line_to(cr, leftEdge[i].x, leftEdge[i].y);
+            cairo_stroke(cr);
+            cairo_new_path(cr);
+            cairo_move_to(cr, rightEdge[0].x, rightEdge[0].y);
+            for (int i = 1; i <= steps; ++i) cairo_line_to(cr, rightEdge[i].x, rightEdge[i].y);
+            cairo_stroke(cr);
+            cairo_new_path(cr);
+            if (skin.renderStyle == SkinRenderStyle::Dazed) {
+                fillEllipse(cr, end.x, end.y, pawR * 1.28, pawR * (0.85 + 0.46));
+            } else {
+                fillEllipse(cr, end.x, end.y, pawR, pawR * 0.85);
+            }
+            cairo_stroke(cr);
+            return;
+        }
         if (skin.renderStyle == SkinRenderStyle::Dazed) {
             double px = end.x - pawR * 1.28, py = end.y - pawR * (0.85 + 0.46);
             double pw = pawR * 2.56, ph = pawR * (1.70 + 0.92);
@@ -2687,68 +3191,53 @@ private:
             }
             return;
         }
-        if (whiteOutlineEnabled()) {
-            setCol(cr, blackOutline);
-            cairo_set_line_width(cr, BlackOutlineW * 2.0);
-            cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND);
-            cairo_set_line_join(cr, CAIRO_LINE_JOIN_ROUND);
-            int rimStart = isClassicBlackRim(skin) ? 2 : 4;
-            cairo_new_path(cr);
-            cairo_move_to(cr, leftEdge[rimStart].x, leftEdge[rimStart].y);
-            for (int i = rimStart + 1; i <= steps; ++i) cairo_line_to(cr, leftEdge[i].x, leftEdge[i].y);
-            cairo_stroke(cr);
-            cairo_new_path(cr);
-            cairo_move_to(cr, rightEdge[rimStart].x, rightEdge[rimStart].y);
-            for (int i = rimStart + 1; i <= steps; ++i) cairo_line_to(cr, rightEdge[i].x, rightEdge[i].y);
-            cairo_stroke(cr);
-            cairo_new_path(cr);
-            fillEllipse(cr, end.x, end.y, pawR, pawR * 0.85);
-            cairo_stroke(cr);
-        }
         const SkinColor& lineCol = pal.outline.set ? pal.outline : pal.crease;
         if (!skin.colorpoint()) {
+            bool isLeftArm = frontPaw && !outlineOnLeft;
+            SkinSpace limbSpace = frontPaw ? (isLeftArm ? SkinSpace::LeftArm : SkinSpace::RightArm) : SkinSpace::HindLeg;
+            const char* limbKey = frontPaw ? (isLeftArm ? "leftArm" : "rightArm") : "hindLeg";
+            const SkinColor& limbBase = frontPaw ? pal.legs : (pal.hindLeg.set ? pal.hindLeg : pal.legs);
+            const SkinColor& limbPaw = frontPaw ? pal.paws : (pal.hindPaw.set ? pal.hindPaw : pal.paws);
             traceLimb();
-            setCol(cr, pal.legs);
-            if (pal.belly.set && !pal.belly.sameAs(pal.legs)) {
+            setCol(cr, limbBase);
+            if (auto pgIt = skin.partGradients.find(limbKey); pgIt != skin.partGradients.end()) {
+                fillClampedPartGradient(cr, pgIt->second, start.x, start.y, end.x, end.y);
+            } else if (frontPaw && pal.belly.set && !pal.belly.sameAs(limbBase)) {
                 // White chest fading into the leg colour along the first 30% of the arm.
-                const SkinColor& chest=pal.belly; const SkinColor& base=pal.legs;
+                const SkinColor& chest=pal.belly; const SkinColor& base=limbBase;
                 cairo_pattern_t* gradient=cairo_pattern_create_linear(start.x,start.y,end.x,end.y);
                 cairo_pattern_add_color_stop_rgb(gradient,0,chest.r,chest.g,chest.b);
                 cairo_pattern_add_color_stop_rgb(gradient,0.30,base.r,base.g,base.b);
                 cairo_pattern_set_extend(gradient,CAIRO_EXTEND_PAD);
                 cairo_set_source(cr,gradient);cairo_fill(cr);cairo_pattern_destroy(gradient);
             } else cairo_fill(cr);
-            if (frontPaw) {
-                bool isLeftArm = !outlineOnLeft;
-                SkinSpace armSpace = isLeftArm ? SkinSpace::LeftArm : SkinSpace::RightArm;
-                if (skin.hasPartArt(armSpace)) {
-                    float sideSign = isLeftArm ? 1.0f : -1.0f;
-                    auto map = [&](SkinPoint pt) -> Pt {
-                        float t = std::clamp(pt.x / 100.0f, 0.0f, 1.0f);
-                        Pt p = quadPoint(start, ctrl, end, t);
-                        Pt tan = quadTangent(start, ctrl, end, t);
-                        float len = std::max(0.001f, std::hypot(tan.x, tan.y));
-                        float nx = -tan.y / len, ny = tan.x / len;
-                        float hw = (startW + (endW - startW) * t) * 0.5f;
-                        float off = sideSign * (pt.y / 10.0f) * hw;
-                        return { p.x + nx * off, p.y + ny * off };
-                    };
-                    cairo_save(cr);
-                    traceLimb();
-                    cairo_clip(cr);
-                    for (const SkinRegion& r : skin.regions) if (r.space == armSpace) drawRegion(cr, r, map);
-                    for (const SkinMark& mk : skin.marks) if (mk.space == armSpace) drawMark(cr, mk, map);
-                    cairo_restore(cr);
-                }
+            if (skin.hasPartArt(limbSpace)) {
+                float sideSign = isLeftArm ? 1.0f : -1.0f;
+                auto map = [&](SkinPoint pt) -> Pt {
+                    float t = std::clamp(pt.x / 100.0f, 0.0f, 1.0f);
+                    Pt p = quadPoint(start, ctrl, end, t);
+                    Pt tan = quadTangent(start, ctrl, end, t);
+                    float len = std::max(0.001f, std::hypot(tan.x, tan.y));
+                    float nx = -tan.y / len, ny = tan.x / len;
+                    float hw = (startW + (endW - startW) * t) * 0.5f;
+                    float off = sideSign * (pt.y / 10.0f) * hw;
+                    return { p.x + nx * off, p.y + ny * off };
+                };
+                cairo_save(cr);
+                traceLimb();
+                cairo_clip(cr);
+                for (const SkinRegion& r : skin.regions) if (r.space == limbSpace) drawRegion(cr, r, map);
+                for (const SkinMark& mk : skin.marks) if (mk.space == limbSpace) drawMark(cr, mk, map);
+                cairo_restore(cr);
             }
-            if (!pal.paws.sameAs(pal.legs)) {
+            if (!limbPaw.sameAs(limbBase)) {
                 int first=(int)(steps*0.72f);
                 cairo_new_path(cr);cairo_move_to(cr,leftEdge[first].x,leftEdge[first].y);
                 for (int i=first+1;i<=steps;++i)cairo_line_to(cr,leftEdge[i].x,leftEdge[i].y);
                 for (int i=steps;i>=first;--i)cairo_line_to(cr,rightEdge[i].x,rightEdge[i].y);
-                cairo_close_path(cr);setCol(cr,pal.paws);cairo_fill(cr);
+                cairo_close_path(cr);setCol(cr,limbPaw);cairo_fill(cr);
             }
-            setCol(cr, pal.paws);
+            setCol(cr, limbPaw);
             cairo_new_path(cr);
             fillEllipse(cr, end.x, end.y, pawR, pawR * 0.85);
             cairo_fill(cr);
@@ -2797,7 +3286,7 @@ private:
 
     // MARK: - Floating Keycaps
 
-    static void drawFloatingKeycaps(cairo_t* cr, const CatPhysics& physics) {
+    static void drawFloatingKeycaps(cairo_t* cr, const CatPhysics& physics, bool flipped = false) {
         cairo_select_font_face(cr, "Sans", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD);
 
         for (const auto& b : physics.floatingKeycaps) {
@@ -2822,7 +3311,7 @@ private:
             cairo_save(cr);
             cairo_translate(cr, b.position.x, b.position.y);
             cairo_rotate(cr, b.rotation);
-            cairo_scale(cr, scale, scale);
+            cairo_scale(cr, flipped ? -scale : scale, scale);
 
             roundedRect(cr, -w * 0.5, -h * 0.5 + 2.5, w, h, 5.5);
             cairo_set_source_rgba(cr, 0.15, 0.15, 0.17, 0.95 * alpha);
@@ -2848,7 +3337,7 @@ private:
 
     // MARK: - Sparkles & Sleep Z
 
-    static void drawSparkles(cairo_t* cr, const CatPhysics& physics, EyeColorTheme eyeTheme) {
+    static void drawSparkles(cairo_t* cr, const CatPhysics& physics, EyeColorTheme eyeTheme, bool flipped = false) {
         RGBA c = eyePrimary(eyeTheme);
         for (const auto& sp : physics.sparkles) {
             double p = std::min(1.0, (double)(sp.age / sp.lifetime));
@@ -2860,7 +3349,15 @@ private:
             if (sp.isSleepZ) {
                 cairo_select_font_face(cr, "Sans", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD);
                 cairo_set_font_size(cr, 11.0 + p * 3.0);
-                cairo_move_to(cr, sp.position.x, sp.position.y);
+                if (flipped) {
+                    cairo_text_extents_t ext = {};
+                    cairo_text_extents(cr, "z", &ext);
+                    cairo_translate(cr, sp.position.x + ext.x_advance * 0.5, sp.position.y);
+                    cairo_scale(cr, -1.0, 1.0);
+                    cairo_move_to(cr, -ext.x_advance * 0.5, 0.0);
+                } else {
+                    cairo_move_to(cr, sp.position.x, sp.position.y);
+                }
                 cairo_show_text(cr, "z");
             } else {
                 double r = 3.5 + p * 1.5;
@@ -2982,7 +3479,7 @@ private:
 
     /// Top-level Xiao Douni scene router inside KuroCat's 360x320 canvas.
     static void drawDouniScene(cairo_t* cr, const CatPhysics& physics, const SkinSpec& skin,
-                               const KeyboardSkinSpec& kbSkin, EyeColorTheme eyeTheme, bool marquee) {
+                               const KeyboardSkinSpec& kbSkin, EyeColorTheme eyeTheme, bool marquee, bool flipped = false) {
         double scruff = std::clamp((double)physics.scruffDrag.value, 0.0, 1.0);
         double scruffS = smoothstepD(0.0, 1.0, scruff);
         double loafRaw = std::clamp((double)physics.douniLoafBlend.value, 0.0, 1.0);
@@ -3007,7 +3504,7 @@ private:
                 cairo_save(cr);
                 if (loafAlpha < 0.995) cairo_push_group(cr);
                 cairo_translate(cr, 0.0, scruffS * 20.0);
-                drawDouniV1LoafInCanvas(cr, physics, skin, 1.0);
+                drawDouniV1LoafInCanvas(cr, physics, skin, 1.0, flipped);
                 if (loafAlpha < 0.995) {
                     cairo_pop_group_to_source(cr);
                     cairo_paint_with_alpha(cr, loafAlpha);
@@ -3028,12 +3525,12 @@ private:
         }
 
         if (loafS > 0.01) {
-            drawDouniV1LoafInCanvas(cr, physics, skin, loafS);
+            drawDouniV1LoafInCanvas(cr, physics, skin, loafS, flipped);
         }
     }
 
     static void drawDouniV1LoafInCanvas(cairo_t* cr, const CatPhysics& physics, const SkinSpec& skin,
-                                        double loafMorph = 1.0) {
+                                        double loafMorph = 1.0, bool flipped = false) {
         double m = std::clamp(loafMorph, 0.0, 1.0);
         // Tight swap window [0.36..0.56] right when V2 cat has already glided & squished into Loaf's exact spot!
         double alpha = smoothstepD(0.36, 0.56, m);
@@ -3057,7 +3554,7 @@ private:
         cairo_translate(cr, -pivotX, -pivotY);
         cairo_translate(cr, tx, ty);
         cairo_scale(cr, scale, scale);
-        drawDouniV1LoafInSpace(cr, physics, skin, true);
+        drawDouniV1LoafInSpace(cr, physics, skin, true, flipped);
         if (alpha < 0.995) {
             cairo_pop_group_to_source(cr);
             cairo_paint_with_alpha(cr, alpha);
@@ -3088,7 +3585,7 @@ private:
         double ty = 68.0 - liftS * 22.0 + physics.scruffSwingY.value * 8.0 + std::sin((double)physics.time * 3.8) * 2.5 * (1.0 - startleTarget);
         cairo_translate(cr, tx, ty);
         cairo_scale(cr, scale, scale);
-        drawVideo1DragInSpace(cr, skin, eyeTheme, startleTarget, swing);
+        drawVideo1DragInSpace(cr, physics, skin, eyeTheme, startleTarget, swing);
         if (alpha < 0.995) {
             cairo_pop_group_to_source(cr);
             cairo_paint_with_alpha(cr, alpha);
@@ -3119,7 +3616,7 @@ public:
     // MARK: - V1Space (1000 x 750) Pixel-Exact Video 1 Rest / Pet / Sleep Loaf
 
     static void drawDouniV1LoafInSpace(cairo_t* cr, const CatPhysics& physics, const SkinSpec& skin,
-                                       bool showStatusAccents = true) {
+                                       bool showStatusAccents = true, bool flipped = false) {
         RGBA ink = skin.palette.outline.set ? toRGBA(skin.palette.outline) : douniInkColor;
         RGBA cream = toRGBA(skin.palette.body);
         RGBA taupe = toRGBA(skin.palette.points.set ? skin.palette.points : skin.palette.paws);
@@ -3282,14 +3779,14 @@ public:
                 double zy = 218.0 - p * 112.0;
                 double alpha = std::sin(p * PI) * std::min(1.0, (double)physics.sleepiness * 1.3);
                 double sz = 24.0 + p * 18.0;
-                drawComicZ(cr, { zx, zy }, sz, alpha, ink);
+                drawComicZ(cr, { zx, zy }, sz, alpha, ink, flipped);
             }
         }
     }
 
     // MARK: - V1Space (1000 x 750) Universal Video 1 Lifted / Startled Drag Pose
 
-    static void drawVideo1DragInSpace(cairo_t* cr, const SkinSpec& skin, EyeColorTheme eyeTheme,
+    static void drawVideo1DragInSpace(cairo_t* cr, const CatPhysics& physics, const SkinSpec& skin, EyeColorTheme eyeTheme,
                                       double startle, double swing) {
         double s = std::clamp(startle, 0.0, 1.0);
         bool isDouni = (skin.renderStyle == SkinRenderStyle::Douni);
@@ -3456,8 +3953,38 @@ public:
         PtD rightEyeCenter = { lerpD(510.0, 501.0, s), lerpD(222.0, 324.0, s) };
         double eyeRX = lerpD(87.0, 89.0, s);
         double eyeRY = lerpD(91.0, 84.0, s);
-        drawV1WateryEye(cr, leftEyeCenter, eyeRX, eyeRY, true, irisColor, inkColor, lw, s, isBlackRim);
-        drawV1WateryEye(cr, rightEyeCenter, eyeRX + 2.0, eyeRY, false, irisColor, inkColor, lw, s, isBlackRim);
+        if (physics.scruffDizzyIntensity.value > 0.28f) {
+            for (int side = 0; side < 2; ++side) {
+                PtD ec = (side == 0) ? leftEyeCenter : rightEyeCenter;
+                double er = (side == 0) ? eyeRX : (eyeRX + 2.0);
+                cairo_save(cr);
+                cairo_translate(cr, ec.x, ec.y);
+                cairo_set_source_rgba(cr, 0.98, 0.98, 0.96, 0.96);
+                cairo_new_path(cr);
+                fillEllipse(cr, 0.0, 0.0, er, eyeRY);
+                cairo_fill_preserve(cr);
+                setCol(cr, inkColor);
+                cairo_set_line_width(cr, lw * 0.94);
+                cairo_stroke(cr);
+                double spin = (double)physics.dizzyPhase * (side == 0 ? 1.0 : -1.0);
+                double maxR = std::min(er, eyeRY) * 0.78;
+                cairo_new_path(cr);
+                for (int i = 0; i <= 44; ++i) {
+                    double t = (double)i / 44.0;
+                    double theta = spin + t * PI * 4.4;
+                    double rad = t * maxR;
+                    double sx = std::cos(theta) * rad, sy = std::sin(theta) * rad;
+                    if (i == 0) cairo_move_to(cr, sx, sy);
+                    else cairo_line_to(cr, sx, sy);
+                }
+                cairo_set_line_width(cr, lw * 0.72);
+                cairo_stroke(cr);
+                cairo_restore(cr);
+            }
+        } else {
+            drawV1WateryEye(cr, leftEyeCenter, eyeRX, eyeRY, true, irisColor, inkColor, lw, s, isBlackRim);
+            drawV1WateryEye(cr, rightEyeCenter, eyeRX + 2.0, eyeRY, false, irisColor, inkColor, lw, s, isBlackRim);
+        }
 
         // Optional cute tiny nose on patterned non-Douni cats
         if (!isDouni && !isBlackRim && !skin.colorpoint()) {
@@ -3587,7 +4114,8 @@ public:
                 drawDouniComicMouse(
                     cr, mouseCenter,
                     (double)physics.mousePressLeft.value, (double)physics.mousePressRight.value,
-                    mouseBodyColor, kbBevelColor, mouseWheelColor, glowBaseColor, ink, catLW
+                    mouseBodyColor, kbBevelColor, mouseWheelColor, glowBaseColor, ink, catLW,
+                    (double)physics.mousePressMiddle.value
                 );
             }
             if (groupGear) {
@@ -3659,8 +4187,9 @@ public:
             double gazeY = poseOverride ? 0.0 : (double)physics.eyeGaze.y.value;
             double baseBlink = poseOverride ? 0.0 : (double)physics.blinkProgress();
             double blink = std::max(baseBlink, smoothstepD(0.04, 0.44, morph));
-            drawV2BobaEye(cr, { 518.0, 262.0 }, 47.5, true,  gazeX, gazeY, blink, hunt, dizzy, (double)physics.dizzyPhase, anger, cream, ink, catLW);
-            drawV2BobaEye(cr, { 652.0, 274.0 }, 46.5, false, gazeX, gazeY, blink, hunt, dizzy, (double)physics.dizzyPhase, anger, cream, ink, catLW);
+            double v2Dizzy = poseOverride ? dizzy : std::max(dizzy, std::clamp((double)physics.scruffDizzyIntensity.value, 0.0, 1.0));
+            drawV2BobaEye(cr, { 518.0, 262.0 }, 47.5, true,  gazeX, gazeY, blink, hunt, v2Dizzy, (double)physics.dizzyPhase, anger, cream, ink, catLW);
+            drawV2BobaEye(cr, { 652.0, 274.0 }, 46.5, false, gazeX, gazeY, blink, hunt, v2Dizzy, (double)physics.dizzyPhase, anger, cream, ink, catLW);
 
             // 2e. Expressive Comic Emotion Accents: Pulsing Red Anger Vein (💢), Alert Hunter Ticks, Orbiting Dizzy Stars!
             if (anger > 0.14) {
@@ -3668,7 +4197,7 @@ public:
                 double pulse = (1.0 + std::sin((double)physics.time * 16.0) * 0.12) * 0.90;
                 drawDouniAngerVein(cr, { 682.0, 198.0 }, pulse, aAlpha);
             }
-            if (hunt > 0.35 && dizzy < 0.15) {
+            if (hunt > 0.35 && v2Dizzy < 0.15) {
                 double hAlpha = smoothstepD(0.35, 0.78, hunt);
                 cairo_save(cr);
                 setCol(cr, ink, hAlpha);
@@ -3680,8 +4209,8 @@ public:
                 cairo_stroke(cr);
                 cairo_restore(cr);
             }
-            if (dizzy > 0.08) {
-                drawDouniDizzyStars(cr, { 590.0, 74.0 }, (double)physics.dizzyPhase, dizzy, ink);
+            if (v2Dizzy > 0.08) {
+                drawDouniDizzyStars(cr, { 590.0, 74.0 }, (double)physics.dizzyPhase, v2Dizzy, ink);
             }
 
             if (groupCat) {
@@ -3736,8 +4265,10 @@ public:
                 (double)physics.douniLeftKeyTarget.point().x + impT * 10.0,
                 (double)physics.douniLeftKeyTarget.point().y + impY * 8.5
             };
+            double penAngle = -2.14 + (double)physics.tabletPenTilt.value;
             PtD leftToolTarget = isTablet
-                ? PtD{ v2Nib.x + 14.0, v2Nib.y - 12.0 + tabletPress * 5.0 }
+                ? PtD{ v2Nib.x + std::cos(penAngle) * 54.0 - 6.0,
+                       v2Nib.y + std::sin(penAngle) * 54.0 - 12.0 + tabletPress * 4.0 }
                 : PtD{ mouseCenter.x + 8.0, mouseCenter.y - 2.0 + mousePress * 8.0 };
 
             drawV2LeftArm(
@@ -3747,14 +4278,13 @@ public:
                 cream, taupe, ink, catLW, lVel
             );
 
-            // Held Hand-Drawn Comic Stylus gripped right at Douni's left paw when using Graphics Tablet!
+            // Held Hand-Drawn Comic Stylus gripped right at the middle of barrel by Douni's left paw!
             if (showMouse && isTablet && effectiveMouseBlend > 0.18) {
                 double penAlpha = smoothstepD(0.18, 0.42, effectiveMouseBlend);
                 cairo_save(cr);
                 bool groupPen = (penAlpha < 0.995);
                 if (groupPen) cairo_push_group(cr);
                 PtD nibDrawPt = { v2Nib.x, v2Nib.y + tabletPress * 4.0 };
-                double penAngle = -2.14 + (double)physics.tabletPenTilt.value;
                 cairo_translate(cr, nibDrawPt.x, nibDrawPt.y);
                 cairo_rotate(cr, penAngle);
                 drawDouniComicStylus(cr, 124.0, glowBaseColor, eyeCol, ink, catLW, tabletPress);
@@ -3790,7 +4320,9 @@ public:
     // MARK: - Universal Front-Facing Long-Cat Scruff-Lifted Drag Pose (ALL Non-Douni Skins!)
 
     static void drawNativeScruffDragCat(cairo_t* cr, const CatPhysics& physics, const SkinSpec& skin,
-                                        EyeColorTheme eyeTheme, double lift) {
+                                        EyeColorTheme eyeTheme, const KeyboardSkinSpec& kbSkin,
+                                        KeyboardTheme kbTheme, bool showKeyLegends, bool keyboardMarquee,
+                                        bool overrideSkinIris, double lift, bool flipped = false) {
         double liftS = smoothstepD(0.0, 1.0, lift);
         double startle = 0.0;
         if (physics.isScruffDragging()) {
@@ -4074,49 +4606,67 @@ public:
             cairo_save(cr);
             traceLimbPath(limb, 1);
             cairo_clip(cr);
-            cairo_pattern_t* grad = cairo_pattern_create_linear(limb.root.x, limb.root.y, limb.tip.x, limb.tip.y);
+            SkinSpace limbSpace = (limb.armDir < 0) ? SkinSpace::LeftArm : ((limb.armDir > 0) ? SkinSpace::RightArm : SkinSpace::HindLeg);
+            const char* limbKey = (limb.armDir < 0) ? "leftArm" : ((limb.armDir > 0) ? "rightArm" : "hindLeg");
             if (isDazed) {
+                cairo_pattern_t* grad = cairo_pattern_create_linear(limb.root.x, limb.root.y, limb.tip.x, limb.tip.y);
                 cairo_pattern_add_color_stop_rgba(grad, 0.0, 227.0/255.0, 201.0/255.0, 159.0/255.0, 1.0);
                 cairo_pattern_add_color_stop_rgba(grad, 1.0, 200.0/255.0, 167.0/255.0, 122.0/255.0, 1.0);
+                cairo_pattern_set_extend(grad, CAIRO_EXTEND_PAD);
+                cairo_set_source(cr, grad);
+                cairo_paint(cr);
+                cairo_pattern_destroy(grad);
             } else if (skin.colorpoint()) {
+                cairo_pattern_t* grad = cairo_pattern_create_linear(limb.root.x, limb.root.y, limb.tip.x, limb.tip.y);
                 const SkinColor& midC = pal.pointsMid.set ? pal.pointsMid : pal.legs;
                 cairo_pattern_add_color_stop_rgba(grad, 0.0,  pal.body.r, pal.body.g, pal.body.b, pal.body.a);
                 cairo_pattern_add_color_stop_rgba(grad, 0.20, pal.body.r, pal.body.g, pal.body.b, pal.body.a);
                 cairo_pattern_add_color_stop_rgba(grad, 0.54, midC.r,     midC.g,     midC.b,     midC.a);
                 cairo_pattern_add_color_stop_rgba(grad, 0.88, pal.paws.r, pal.paws.g, pal.paws.b, pal.paws.a);
+                cairo_pattern_set_extend(grad, CAIRO_EXTEND_PAD);
+                cairo_set_source(cr, grad);
+                cairo_paint(cr);
+                cairo_pattern_destroy(grad);
+            } else if (auto pgIt = skin.partGradients.find(limbKey); pgIt != skin.partGradients.end()) {
+                paintClampedPartGradient(cr, pgIt->second, limb.root.x, limb.root.y, limb.tip.x, limb.tip.y);
             } else if (!limb.isBehindBody && !pal.legs.sameAs(pal.body)) {
+                cairo_pattern_t* grad = cairo_pattern_create_linear(limb.root.x, limb.root.y, limb.tip.x, limb.tip.y);
                 cairo_pattern_add_color_stop_rgba(grad, 0.0,  pal.body.r, pal.body.g, pal.body.b, pal.body.a);
                 cairo_pattern_add_color_stop_rgba(grad, 0.14, pal.body.r, pal.body.g, pal.body.b, pal.body.a);
                 cairo_pattern_add_color_stop_rgba(grad, 0.42, pal.legs.r, pal.legs.g, pal.legs.b, pal.legs.a);
                 cairo_pattern_add_color_stop_rgba(grad, 0.82, pal.paws.r, pal.paws.g, pal.paws.b, pal.paws.a);
+                cairo_pattern_set_extend(grad, CAIRO_EXTEND_PAD);
+                cairo_set_source(cr, grad);
+                cairo_paint(cr);
+                cairo_pattern_destroy(grad);
             } else {
-                cairo_pattern_add_color_stop_rgba(grad, 0.22, pal.legs.r, pal.legs.g, pal.legs.b, pal.legs.a);
-                cairo_pattern_add_color_stop_rgba(grad, 0.75, pal.paws.r, pal.paws.g, pal.paws.b, pal.paws.a);
+                cairo_pattern_t* grad = cairo_pattern_create_linear(limb.root.x, limb.root.y, limb.tip.x, limb.tip.y);
+                const SkinColor& legC = limb.isBehindBody && pal.hindLeg.set ? pal.hindLeg : pal.legs;
+                const SkinColor& pawC = limb.isBehindBody && pal.hindPaw.set ? pal.hindPaw : pal.paws;
+                cairo_pattern_add_color_stop_rgba(grad, 0.22, legC.r, legC.g, legC.b, legC.a);
+                cairo_pattern_add_color_stop_rgba(grad, 0.75, pawC.r, pawC.g, pawC.b, pawC.a);
+                cairo_pattern_set_extend(grad, CAIRO_EXTEND_PAD);
+                cairo_set_source(cr, grad);
+                cairo_paint(cr);
+                cairo_pattern_destroy(grad);
             }
-            cairo_pattern_set_extend(grad, CAIRO_EXTEND_PAD);
-            cairo_set_source(cr, grad);
-            cairo_paint(cr);
-            cairo_pattern_destroy(grad);
 
-            if (limb.armDir != 0) {
-                SkinSpace armSpace = (limb.armDir < 0) ? SkinSpace::LeftArm : SkinSpace::RightArm;
-                if (skin.hasPartArt(armSpace)) {
-                    double sign = (double)limb.armDir;
-                    auto armMap = [&](SkinPoint p) -> Pt {
-                        double t = std::clamp((double)p.x / 100.0, 0.0, 1.0);
-                        double omt = 1.0 - t;
-                        double lx = omt * omt * geo.p0L.x + 2.0 * omt * t * geo.midL.x + t * t * geo.p1L.x;
-                        double ly = omt * omt * geo.p0L.y + 2.0 * omt * t * geo.midL.y + t * t * geo.p1L.y;
-                        double rx = omt * omt * geo.p0R.x + 2.0 * omt * t * geo.midR.x + t * t * geo.p1R.x;
-                        double ry = omt * omt * geo.p0R.y + 2.0 * omt * t * geo.midR.y + t * t * geo.p1R.y;
-                        double cx = (lx + rx) * 0.5, cy = (ly + ry) * 0.5;
-                        double hx = (rx - lx) * 0.5, hy = (ry - ly) * 0.5;
-                        double u = sign * ((double)p.y / 10.0);
-                        return { (float)(cx + hx * u), (float)(cy + hy * u) };
-                    };
-                    for (const SkinRegion& region : skin.regions) if (region.space == armSpace) drawRegion(cr, region, armMap);
-                    for (const SkinMark& mark : skin.marks) if (mark.space == armSpace) drawMark(cr, mark, armMap);
-                }
+            if (skin.hasPartArt(limbSpace)) {
+                double sign = (limb.armDir != 0) ? (double)limb.armDir : ((limb.bendX < 0.0) ? -1.0 : 1.0);
+                auto armMap = [&](SkinPoint p) -> Pt {
+                    double t = std::clamp((double)p.x / 100.0, 0.0, 1.0);
+                    double omt = 1.0 - t;
+                    double lx = omt * omt * geo.p0L.x + 2.0 * omt * t * geo.midL.x + t * t * geo.p1L.x;
+                    double ly = omt * omt * geo.p0L.y + 2.0 * omt * t * geo.midL.y + t * t * geo.p1L.y;
+                    double rx = omt * omt * geo.p0R.x + 2.0 * omt * t * geo.midR.x + t * t * geo.p1R.x;
+                    double ry = omt * omt * geo.p0R.y + 2.0 * omt * t * geo.midR.y + t * t * geo.p1R.y;
+                    double cx = (lx + rx) * 0.5, cy = (ly + ry) * 0.5;
+                    double hx = (rx - lx) * 0.5, hy = (ry - ly) * 0.5;
+                    double u = sign * ((double)p.y / 10.0);
+                    return { (float)(cx + hx * u), (float)(cy + hy * u) };
+                };
+                for (const SkinRegion& region : skin.regions) if (region.space == limbSpace) drawRegion(cr, region, armMap);
+                for (const SkinMark& mark : skin.marks) if (mark.space == limbSpace) drawMark(cr, mark, armMap);
             }
             cairo_restore(cr);
 
@@ -4198,11 +4748,20 @@ public:
             traceTailCurve();
             cairo_stroke(cr);
         }
-        if (isDazed) cairo_set_source_rgb(cr, 40.0/255.0, 49.0/255.0, 87.0/255.0);
-        else setCol(cr, pal.tail);
+        cairo_pattern_t* dragTailPat = nullptr;
+        if (isDazed) {
+            cairo_set_source_rgb(cr, 40.0/255.0, 49.0/255.0, 87.0/255.0);
+        } else if (auto tg = skin.partGradients.find("tail"); tg != skin.partGradients.end()) {
+            dragTailPat = createPartGradient(tg->second, tailRoot.x, tailRoot.y, tailTip.x, tailTip.y);
+            if (dragTailPat) cairo_set_source(cr, dragTailPat);
+            else setCol(cr, tg->second.to);
+        } else {
+            setCol(cr, pal.tail);
+        }
         cairo_set_line_width(cr, tailW);
         traceTailCurve();
         cairo_stroke(cr);
+        if (dragTailPat) cairo_pattern_destroy(dragTailPat);
         if (pal.stripes.set && !isBlackRim && !skin.colorpoint() && !isDazed) {
             auto evalTailPt = [&](double t) -> PtD {
                 double u = 1.0 - t;
@@ -4233,6 +4792,12 @@ public:
             cairo_stroke(cr);
         }
         cairo_restore(cr);
+
+        if (!skin.decorations.empty()) {
+            Pt dragTailTip = { (float)tailTip.x, (float)tailTip.y };
+            drawDecorations(cr, (float)rumpCenterX, (float)torsoBottomY, headCenter, physics, skin,
+                            nullptr, &dragTailTip, anchorBit(SkinAnchorPoint::TailTip));
+        }
 
         // 2. Dangling hind legs emerging from lower belly hem
         drawDragLimb(backLeftLimb);
@@ -4317,14 +4882,28 @@ public:
                 cairo_pattern_destroy(bg);
             }
 
-            for (const SkinRegion& region : skin.regions) {
-                if (region.space != SkinSpace::Head && region.space != SkinSpace::Skull && region.space != SkinSpace::Body) continue;
+            if (auto bg = skin.partGradients.find("body"); bg != skin.partGradients.end()) {
                 cairo_save(cr);
-                jawSide(cr, region.space != SkinSpace::Body, skin, headCenter, physics);
+                jawSide(cr, false, skin, headCenter, physics);
                 cairo_clip(cr);
-                if (region.space == SkinSpace::Body) drawRegion(cr, region, dragBodyMap);
-                else if (region.space == SkinSpace::Skull) drawRegion(cr, region, skullMap);
-                else drawRegion(cr, region, headMap);
+                paintClampedPartGradient(cr, bg->second, headCenterD.x, headCenterD.y + 20.0, rumpCenterX, torsoBottomY + bottomDip);
+                cairo_restore(cr);
+            }
+
+            if (pal.headBody.set) {
+                cairo_save(cr);
+                jawSide(cr, true, skin, headCenter, physics);
+                cairo_clip(cr);
+                setCol(cr, pal.headBody);
+                cairo_paint(cr);
+                cairo_restore(cr);
+            }
+
+            if (auto hg = skin.partGradients.find("head"); hg != skin.partGradients.end()) {
+                cairo_save(cr);
+                jawSide(cr, true, skin, headCenter, physics);
+                cairo_clip(cr);
+                paintClampedPartGradient(cr, hg->second, headCenterD.x, headCenterD.y - 48.0, headCenterD.x, headCenterD.y + 40.0);
                 cairo_restore(cr);
             }
 
@@ -4348,14 +4927,45 @@ public:
                 cairo_restore(cr);
             }
 
-            for (const SkinMark& mark : skin.marks) {
-                if (mark.space == SkinSpace::Body) drawMark(cr, mark, dragBodyMap);
+            for (const SkinRegion& region : skin.regions) {
+                if (region.space != SkinSpace::Body) continue;
+                cairo_save(cr);
+                jawSide(cr, false, skin, headCenter, physics);
+                cairo_clip(cr);
+                drawRegion(cr, region, dragBodyMap);
+                cairo_restore(cr);
             }
+            for (const SkinRegion& region : skin.regions) {
+                if (region.space != SkinSpace::Head && region.space != SkinSpace::Skull) continue;
+                cairo_save(cr);
+                jawSide(cr, true, skin, headCenter, physics);
+                cairo_clip(cr);
+                if (region.space == SkinSpace::Skull) drawRegion(cr, region, skullMap);
+                else drawRegion(cr, region, headMap);
+                cairo_restore(cr);
+            }
+
             for (const SkinMark& mark : skin.marks) {
-                if (mark.space == SkinSpace::Skull) drawMark(cr, mark, skullMap);
-                else if (mark.space == SkinSpace::Head) {
-                    if (isMilkMark(mark)) drawMark(cr, mark, headWhiteMap);
-                    else drawMark(cr, mark, headMap);
+                if (mark.space == SkinSpace::Body) {
+                    cairo_save(cr);
+                    jawSide(cr, false, skin, headCenter, physics);
+                    cairo_clip(cr);
+                    drawMark(cr, mark, dragBodyMap);
+                    cairo_restore(cr);
+                } else if (mark.space == SkinSpace::Skull || mark.space == SkinSpace::Head) {
+                    auto mapFn = [&](SkinPoint p) -> Pt {
+                        if (mark.space == SkinSpace::Skull) return skullMap(p);
+                        return isMilkMark(mark) ? headWhiteMap(p) : headMap(p);
+                    };
+                    if (shouldSkipJawHeadClip(mark)) {
+                        drawMark(cr, mark, mapFn);
+                    } else {
+                        cairo_save(cr);
+                        jawSide(cr, true, skin, headCenter, physics);
+                        cairo_clip(cr);
+                        drawMark(cr, mark, mapFn);
+                        cairo_restore(cr);
+                    }
                 }
             }
             cairo_restore(cr);
@@ -4386,17 +4996,76 @@ public:
         }
 
         // 5. Native KuroCat Face Features (normal authentic almond eyes — no round bug-eyes!)
-        drawHeadFeatures(cr, headCenter, physics, eyeTheme, skin, 0.0, 0.0);
+        drawHeadFeatures(cr, headCenter, physics, eyeTheme, skin, 0.0, 0.0, overrideSkinIris);
 
-        // 6. Dangling front arms hanging along the outer shoulder slopes (leaving central chest/belly 100% unobstructed!)
-        drawDragLimb(frontLeftLimb);
-        drawDragLimb(frontRightLimb);
+        // 6. Carried Keyboard + Mouse / Graphics Tablet + Held Stylus gripped cleanly by its middle!
+        constexpr double carryScale = 0.74;
+        double carryAngle = bodyPendulum * 0.85 + swingH * 0.14;
+        Pt kbMid = KeyboardLayout::screenQuadPoint(0.5f, 0.5f);
+        PtD deskAnchor = physics.isTabletActive ? PtD{ 134.0, (double)kbMid.y } : PtD{ 166.0, (double)kbMid.y };
+        PtD carryPivot = { rumpCenterX + 4.0, std::min(226.0, shoulderY + armLen + 36.0) };
+        double carryCos = std::cos(carryAngle), carrySin = std::sin(carryAngle);
+        auto mapDesk = [&](Pt dp) -> PtD {
+            double dx = ((double)dp.x - deskAnchor.x) * carryScale;
+            double dy = ((double)dp.y - deskAnchor.y) * carryScale;
+            return { carryPivot.x + dx * carryCos - dy * carrySin,
+                     carryPivot.y + dx * carrySin + dy * carryCos };
+        };
 
-        // 7. Skin stickers / decorations stay anchored cleanly to the lifted cat's head, neck, and whipping tail tip!
+        DragLimb carriedLeftLimb = frontLeftLimb;
+        DragLimb carriedRightLimb = frontRightLimb;
+        Pt deskNib = physics.scruffStartedHoldingPen ? physics.scruffPenStartNib : CatPhysics::tabletQuadPoint(0.58f, 0.48f);
+        double carryPenRad = (double)(physics.scruffStartedHoldingPen ? physics.scruffPenStartAngle : physics.stylusAngle()) + carryAngle;
+        PtD carriedNib = mapDesk(deskNib);
+        PtD carriedPenGrip = {
+            carriedNib.x + std::cos(carryPenRad) * ((double)CatPhysics::StylusBarrelGripDistance * carryScale),
+            carriedNib.y + std::sin(carryPenRad) * ((double)CatPhysics::StylusBarrelGripDistance * carryScale)
+        };
+        PtD leftGearTarget = physics.isTabletActive
+            ? carriedPenGrip
+            : mapDesk({ CatPhysics::MouseBaseCenter.x + physics.mouseOffset.point().x,
+                        CatPhysics::MouseBaseCenter.y + physics.mouseOffset.point().y - 4.0f });
+        PtD rightGearTarget = mapDesk(KeyboardLayout::screenQuadPoint(0.52f, 0.12f));
+        carriedLeftLimb.tip = lerpPtD(leftGearTarget, frontLeftLimb.tip, startle);
+        carriedRightLimb.tip = lerpPtD(rightGearTarget, frontRightLimb.tip, startle);
+
+        cairo_save(cr);
+        cairo_translate(cr, carryPivot.x, carryPivot.y);
+        cairo_rotate(cr, carryAngle);
+        cairo_scale(cr, carryScale, carryScale);
+        cairo_translate(cr, -deskAnchor.x, -deskAnchor.y);
+        if (physics.isTabletActive) {
+            drawTablet(cr, physics, kbTheme, eyeTheme);
+        } else {
+            drawMouse(cr, physics, kbSkin);
+        }
+        drawKeyboard(cr, physics, kbSkin, eyeTheme, showKeyLegends, keyboardMarquee, flipped);
+        cairo_restore(cr);
+
+        // 7. Dangling / Carrying Front Arms
+        drawDragLimb(carriedLeftLimb);
+        drawDragLimb(carriedRightLimb);
+
+        if (physics.isTabletActive) {
+            float press = std::clamp(physics.tabletPenPress.value, 0.0f, 1.0f);
+            PtD heldNib = {
+                carriedLeftLimb.tip.x - std::cos(carryPenRad) * ((double)CatPhysics::StylusBarrelGripDistance * carryScale),
+                carriedLeftLimb.tip.y - std::sin(carryPenRad) * ((double)CatPhysics::StylusBarrelGripDistance * carryScale) + press * 1.1
+            };
+            cairo_save(cr);
+            cairo_translate(cr, heldNib.x, heldNib.y);
+            cairo_rotate(cr, carryPenRad);
+            cairo_scale(cr, carryScale, carryScale);
+            drawStylusBody(cr, 35.0, kbTheme, eyeTheme, press);
+            cairo_restore(cr);
+        }
+
+        // 8. Skin stickers / decorations stay anchored cleanly to the lifted cat's head and neck!
         if (!skin.decorations.empty()) {
             Pt dragNeck = { (float)(headCenterD.x + hipLagX * 0.08), (float)(headCenterD.y + 36.0 * hs) };
             Pt dragTailTip = { (float)tailTip.x, (float)tailTip.y };
-            drawDecorations(cr, (float)rumpCenterX, (float)torsoBottomY, headCenter, physics, skin, &dragNeck, &dragTailTip);
+            drawDecorations(cr, (float)rumpCenterX, (float)torsoBottomY, headCenter, physics, skin, &dragNeck, &dragTailTip,
+                            anchorBit(SkinAnchorPoint::HeadTop) | anchorBit(SkinAnchorPoint::Face) | anchorBit(SkinAnchorPoint::Neck));
         }
 
         if (liftAlpha < 0.995) {
@@ -4932,7 +5601,7 @@ private:
         cairo_restore(cr);
     }
 
-    static void drawComicZ(cairo_t* cr, PtD center, double size, double alpha, RGBA ink) {
+    static void drawComicZ(cairo_t* cr, PtD center, double size, double alpha, RGBA ink, bool flipped = false) {
         if (alpha <= 0.02) return;
         cairo_save(cr);
         setCol(cr, ink, alpha);
@@ -4941,10 +5610,19 @@ private:
         cairo_set_line_join(cr, CAIRO_LINE_JOIN_ROUND);
         double r = size * 0.55;
         cairo_new_path(cr);
-        cairo_move_to(cr, center.x - r, center.y - r);
-        cairo_line_to(cr, center.x + r, center.y - r);
-        cairo_line_to(cr, center.x - r, center.y + r);
-        cairo_line_to(cr, center.x + r, center.y + r);
+        if (flipped) {
+            cairo_translate(cr, center.x, center.y);
+            cairo_scale(cr, -1.0, 1.0);
+            cairo_move_to(cr, -r, -r);
+            cairo_line_to(cr, r, -r);
+            cairo_line_to(cr, -r, r);
+            cairo_line_to(cr, r, r);
+        } else {
+            cairo_move_to(cr, center.x - r, center.y - r);
+            cairo_line_to(cr, center.x + r, center.y - r);
+            cairo_line_to(cr, center.x - r, center.y + r);
+            cairo_line_to(cr, center.x + r, center.y + r);
+        }
         cairo_stroke(cr);
         cairo_restore(cr);
     }
@@ -5518,8 +6196,8 @@ private:
 
     static void drawDouniComicMouse(cairo_t* cr, PtD center, double pressLeft, double pressRight,
                                     RGBA bodyColor, RGBA bevelColor, RGBA wheelColor, RGBA glowColor,
-                                    RGBA ink, double lw) {
-        double pressShift = std::max(pressLeft, pressRight) * 5.0;
+                                    RGBA ink, double lw, double pressMiddle = 0.0) {
+        double pressShift = std::max({pressLeft, pressRight, pressMiddle}) * 5.0;
         cairo_save(cr);
         // Cute short wavy comic mouse cord trailing up-left
         setCol(cr, ink);
@@ -5581,9 +6259,11 @@ private:
         cairo_stroke(cr);
 
         // Scroll wheel pill
+        double wpMix = std::clamp(pressMiddle, 0.0, 1.0);
+        RGBA wCol = wpMix > 0.02 ? blend(wheelColor, {1.0, 1.0, 1.0, 1.0}, 0.6 * wpMix) : wheelColor;
         cairo_new_path(cr);
-        roundedRect(cr, -29.0, -5.5, 17.0, 11.0, 5.0);
-        setCol(cr, wheelColor);
+        roundedRect(cr, -29.0 + wpMix * 2.0, -5.5 + wpMix * 0.6, 17.0 - wpMix * 2.0, 11.0 - wpMix * 1.2, 5.0);
+        setCol(cr, wCol);
         cairo_fill_preserve(cr);
         setCol(cr, ink);
         cairo_set_line_width(cr, lw * 0.62);
@@ -5859,11 +6539,11 @@ private:
         double rP = 33.0;
         double archLift = 14.0 * std::fabs(ux);
 
-        PtD shTop = { shoulder.x + nx * rS, shoulder.y + ny * rS };
+        PtD shTop = { shoulder.x + nx * rS, std::max(shoulder.y + ny * rS, 304.0) };
         PtD shBot = { shoulder.x - nx * rS, shoulder.y - ny * rS };
         PtD tip   = { target.x + ux * 16.0, target.y + uy * 16.0 };
 
-        PtD topC1 = { lerpD(shTop.x, target.x + nx * rP, 0.42), lerpD(shTop.y, target.y + ny * rP, 0.42) - archLift };
+        PtD topC1 = { lerpD(shTop.x, target.x + nx * rP, 0.42), std::max(lerpD(shTop.y, target.y + ny * rP, 0.42) - archLift, 286.0) };
         PtD topC2 = { target.x + nx * (rP * 1.15) + ux * 8.0,   target.y + ny * (rP * 1.15) + uy * 8.0 };
         PtD botC1 = { target.x - nx * (rP * 1.15) + ux * 8.0,   target.y - ny * (rP * 1.15) + uy * 8.0 };
         PtD botC2 = { lerpD(shBot.x, target.x - nx * rP, 0.42), lerpD(shBot.y, target.y - ny * rP, 0.42) - archLift * 0.4 };

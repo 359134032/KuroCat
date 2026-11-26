@@ -22,10 +22,13 @@ using std::max;
 #include <objidl.h>
 #include <gdiplus.h>
 #include <wtsapi32.h>
+#include <mmdeviceapi.h>
+#include <audiopolicy.h>
 #include <string>
 #include <vector>
 #include <cmath>
 #include <cwchar>
+#include <optional>
 #include "KeyMap.hpp"
 #include "InputEngine.hpp"
 #include "CatPhysics.hpp"
@@ -52,7 +55,7 @@ using std::max;
 
 namespace {
 
-constexpr const wchar_t* APP_VERSION = L"1.4.4";
+constexpr const wchar_t* APP_VERSION = L"1.4.9";
 constexpr const wchar_t* VERSION_PROP = L"KuroCatVersion"; // set on the tray owner window so newer builds can take over older ones
 constexpr const wchar_t* TRAY_OWNER_CLASS = L"KuroCatTrayOwnerClass";
 constexpr const wchar_t* OVERLAY_CLASS = L"KuroCatOverlayWindowClass";
@@ -80,6 +83,7 @@ enum MenuCmd : UINT {
     CMD_TOGGLE_FOOT,
     CMD_TOGGLE_TAIL,
     CMD_TOGGLE_MARQUEE,
+    CMD_TOGGLE_LEVEL_KEYBOARD,
     CMD_TOGGLE_PET,
     CMD_OBS_OFF,
     CMD_OBS_TRANSPARENT,
@@ -121,6 +125,7 @@ enum MenuCmd : UINT {
     CMD_TABLET_OFF,
     CMD_IMPORT_SKIN,
     CMD_OPEN_WORKSHOP,
+    CMD_OPEN_WEBSITE,
     CMD_OPEN_SKINS_DIR,
     CMD_IMPORT_KB,
     CMD_OPEN_KB_PLAZA,
@@ -130,6 +135,7 @@ enum MenuCmd : UINT {
     CMD_SKIN_DELETE_BASE = 5000,
     CMD_KB_SELECT_BASE = 6000,    // + index into AppState::kbLibrary.skins
     CMD_KB_DELETE_BASE = 7000,
+    CMD_SKIN_RENAME_BASE = 8000,
     CMD_SKIN_RANGE = 900
 };
 constexpr const wchar_t* DRESSING_ROOM_CLASS = L"KuroCatDressingRoomClass";
@@ -145,6 +151,7 @@ struct AppState {
     CatSettings settings;
     InputEngine input;
     CatPhysics physics;
+    std::optional<dazed_skin::Callout> dazedCallout;
     SkinLibrary skins;
     KeyboardSkinLibrary kbLibrary;
     HWND dressingRoom = nullptr;    // 「换装间」 import window (nullptr when closed)
@@ -169,11 +176,15 @@ struct AppState {
     float rotateStartDeg = 0.0f;
     bool rButtonDown = false;
     bool pendingMenuAfterAlt = false;
+    double pendingMenuAltUpTime = 0.0;
     POINT pendingMenuPt = {};
+    bool inContextMenu = false;
     POINT dragStartCursor = {};
     POINT dragStartWinOrigin = {};
     bool hasLastHover = false;
     Pt lastHoverCanvas = {};
+    std::string statsDay;
+    int lastSavedPetSessions = 0;
 
     // Reusable 32-bit premultiplied DIB backing buffer
     HDC memDC = nullptr;
@@ -836,12 +847,85 @@ void recoverAfterSystemEvent(AppState& app) {
     app.pendingTopmostTime = now + 1.5; // some games re-assert topmost shortly after a mode switch
 }
 
+/// Returns true when a known music or media player currently owns an active WASAPI audio session.
+static bool isMusicPlayerPlaying() {
+    static const wchar_t* kPlayers[] = {
+        L"cloudmusic.exe", L"qqmusic.exe", L"spotify.exe", L"kugou.exe",
+        L"kwmusic.exe", L"kuwomusic.exe", L"sodamusic.exe", L"qishui.exe",
+        L"applemusic.exe", L"itunes.exe", L"foobar2000.exe", L"musicbee.exe",
+        L"aimp.exe", L"lx-music-desktop.exe", L"yesplaymusic.exe", L"cider.exe",
+        L"potplayermini64.exe", L"potplayermini.exe", L"vlc.exe", L"mpv.exe",
+        L"mpc-hc64.exe", L"mpc-be64.exe", L"wmplayer.exe", L"microsoft.media.player.exe",
+        L"tidal.exe", L"youtube music.exe", L"bilibili.exe", L"listen1.exe",
+        L"zyplayer.exe", L"kodi.exe", L"audacious.exe"
+    };
+    IMMDeviceEnumerator* enumerator = nullptr;
+    HRESULT hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_ALL,
+                                  __uuidof(IMMDeviceEnumerator), (void**)&enumerator);
+    if (FAILED(hr) || !enumerator) return false;
+    IMMDevice* device = nullptr;
+    hr = enumerator->GetDefaultAudioEndpoint(eRender, eConsole, &device);
+    enumerator->Release();
+    if (FAILED(hr) || !device) return false;
+    IAudioSessionManager2* mgr = nullptr;
+    hr = device->Activate(__uuidof(IAudioSessionManager2), CLSCTX_ALL, nullptr, (void**)&mgr);
+    device->Release();
+    if (FAILED(hr) || !mgr) return false;
+    IAudioSessionEnumerator* sessionEnum = nullptr;
+    hr = mgr->GetSessionEnumerator(&sessionEnum);
+    mgr->Release();
+    if (FAILED(hr) || !sessionEnum) return false;
+
+    int count = 0;
+    sessionEnum->GetCount(&count);
+    bool found = false;
+    for (int i = 0; i < count && !found; ++i) {
+        IAudioSessionControl* ctrl = nullptr;
+        if (FAILED(sessionEnum->GetSession(i, &ctrl)) || !ctrl) continue;
+        AudioSessionState st = AudioSessionStateInactive;
+        if (SUCCEEDED(ctrl->GetState(&st)) && st == AudioSessionStateActive) {
+            IAudioSessionControl2* ctrl2 = nullptr;
+            if (SUCCEEDED(ctrl->QueryInterface(__uuidof(IAudioSessionControl2), (void**)&ctrl2)) && ctrl2) {
+                DWORD pid = 0;
+                if (SUCCEEDED(ctrl2->GetProcessId(&pid)) && pid != 0) {
+                    HANDLE hProc = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+                    if (hProc) {
+                        wchar_t path[MAX_PATH] = {};
+                        DWORD sz = MAX_PATH;
+                        if (QueryFullProcessImageNameW(hProc, 0, path, &sz) && sz > 0) {
+                            const wchar_t* base = wcsrchr(path, L'\\');
+                            base = base ? base + 1 : path;
+                            for (const wchar_t* p : kPlayers) {
+                                if (_wcsicmp(base, p) == 0) { found = true; break; }
+                            }
+                        }
+                        CloseHandle(hProc);
+                    }
+                }
+                ctrl2->Release();
+            }
+        }
+        ctrl->Release();
+    }
+    sessionEnum->Release();
+    return found;
+}
+
 /// Twice per second: watchdog, fullscreen auto-hide, topmost re-assert, and UIPI detection.
 void housekeeping(AppState& app) {
     double now = nowSeconds();
     if (now < app.nextHousekeepingTime) return;
     app.nextHousekeepingTime = now + 0.5;
     if (!app.hwnd) return;
+
+    // Poll music/media player audio sessions every ~1.2s
+    static double s_nextMusicCheck = 0.0;
+    if (!app.settings.autoHeadphonesOnMusic) {
+        app.physics.isMusicPlaying = false;
+    } else if (now >= s_nextMusicCheck) {
+        s_nextMusicCheck = now + 1.2;
+        app.physics.isMusicPlaying = isMusicPlayerPlaying();
+    }
 
     bool fullscreenFg = isForegroundFullscreen(app.hwnd);
     bool obsBg = (app.settings.obsCaptureMode > 0 && app.settings.obsHideDesktop);
@@ -1029,11 +1113,17 @@ bool importSkinFile(AppState& app, const std::wstring& path) {
         }
         return false;
     }
+    app.settings.overrideSkinIris = false;
     app.settings.customSkin = id;
     app.settings.saveToRegistry();
     const SkinSpec* s = app.skins.find(id);
     std::wstring msg = L"✓ 已换上「" + (s ? utf8ToWide(s->name) : std::wstring(L"新皮肤")) + L"」";
     if (s && !s->author.empty()) msg += L"（作者：" + utf8ToWide(s->author) + L"）";
+    if (s) {
+        int dup = 0;
+        for (const auto& item : app.skins.skins) if (item.name == s->name) ++dup;
+        if (dup > 1) msg += L" · 存在同名皮肤，已附加短编号区分";
+    }
     setDressingStatus(app, msg, 1);
     if (!app.dressingRoom) showTrayBalloon(app, L"KuroCat 换装间", msg.c_str());
     return true;
@@ -1248,8 +1338,8 @@ void paint(AppState& app, HWND hwnd, HDC hdc) {
                       : app.dressingStatusKind == 2 ? Color(255, 194, 73, 59) : Color(255, 138, 123, 112);
     text(g, app.dressingStatusText, 12.5f, app.dressingStatusKind ? FontStyleBold : FontStyleRegular, statusColor,
          RectF(22, 390, 400, 42), StringAlignmentCenter);
-    text(g, L"皮肤独立保存在 %APPDATA%\\KuroCat\\skins（软件更新会自动保留）  ·  右键小猫 → 猫咪皮肤 可切换或备份", 10.0f, FontStyleRegular,
-         Color(255, 179, 166, 155), RectF(18, 434, 408, 34), StringAlignmentCenter);
+    text(g, (std::wstring(L"皮肤独立保存在 ") + SkinLibrary::dir() + L"（软件更新会自动保留）  ·  右键小猫 → 猫咪皮肤 可切换或备份").c_str(),
+         10.0f, FontStyleRegular, Color(255, 179, 166, 155), RectF(18, 434, 408, 34), StringAlignmentCenter);
     (void)orange;
 
     Graphics screen(hdc);
@@ -1343,18 +1433,27 @@ void showDressingRoom(AppState& app) {
         registered = RegisterClassExW(&wc) != 0;
     }
     HDC screen = GetDC(nullptr);
-    app.dressingScale = GetDeviceCaps(screen, LOGPIXELSY) / 96.0f;
+    float dpiScale = GetDeviceCaps(screen, LOGPIXELSY) / 96.0f;
     ReleaseDC(nullptr, screen);
-    float k = app.dressingScale;
-    auto px = [&](float v) { return (int)std::lround(v * k); };
     const DWORD style = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU, exStyle = WS_EX_TOPMOST | WS_EX_ACCEPTFILES;
+    RECT frameRc = { 0, 0, 0, 0 };
+    AdjustWindowRectEx(&frameRc, style, FALSE, exStyle);
+    int frameW = frameRc.right - frameRc.left, frameH = frameRc.bottom - frameRc.top;
+    RECT work = {};
+    SystemParametersInfoW(SPI_GETWORKAREA, 0, &work, 0);
+    int maxClientW = std::max(280, (int)(work.right - work.left) - frameW - 24);
+    int maxClientH = std::max(240, (int)(work.bottom - work.top) - frameH - 24);
+    float k = std::min({ dpiScale, (float)maxClientW / dressing::W, (float)maxClientH / dressing::H });
+    if (k < 0.65f) k = 0.65f;
+    app.dressingScale = k;
+    auto px = [&](float v) { return (int)std::lround(v * k); };
     RECT rc = {0, 0, px(dressing::W), px(dressing::H)};
     AdjustWindowRectEx(&rc, style, FALSE, exStyle);
     int w = rc.right - rc.left, h = rc.bottom - rc.top;
-    RECT work = {};
-    SystemParametersInfoW(SPI_GETWORKAREA, 0, &work, 0);
+    int posX = std::max((int)work.left, (int)(work.left + work.right - w) / 2);
+    int posY = std::max((int)work.top, (int)(work.top + work.bottom - h) / 2);
     HWND win = CreateWindowExW(exStyle, DRESSING_ROOM_CLASS, L"换装间", style,
-        (work.left + work.right - w) / 2, (work.top + work.bottom - h) / 2, w, h, nullptr, nullptr, inst, nullptr);
+        posX, posY, w, h, nullptr, nullptr, inst, nullptr);
     if (!win) return;
     app.dressingRoom = win;
     allowDropsWhenElevated(win);
@@ -1365,6 +1464,133 @@ void showDressingRoom(AppState& app) {
     setDressingStatus(app, L"支持拖入多个文件；坏掉的文件会告诉你哪里不对。", 0);
     ShowWindow(win, SW_SHOWNORMAL);
     SetForegroundWindow(win);
+}
+
+void refreshSettingsWindow(AppState& app);
+
+struct RenameDialogState {
+    std::wstring value;
+    bool accepted = false;
+    bool done = false;
+    HWND editHwnd = nullptr;
+};
+
+static LRESULT CALLBACK RenameSkinDlgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+    auto* st = (RenameDialogState*)GetWindowLongPtrW(hwnd, GWLP_USERDATA);
+    switch (msg) {
+        case WM_NCCREATE: {
+            auto* cs = (CREATESTRUCTW*)lParam;
+            SetWindowLongPtrW(hwnd, GWLP_USERDATA, (LONG_PTR)cs->lpCreateParams);
+            return TRUE;
+        }
+        case WM_COMMAND: {
+            int id = LOWORD(wParam);
+            if (id == IDOK && st) {
+                wchar_t buf[128] = {};
+                GetWindowTextW(st->editHwnd, buf, 127);
+                st->value = buf;
+                st->accepted = true;
+                st->done = true;
+                DestroyWindow(hwnd);
+                return 0;
+            }
+            if (id == IDCANCEL && st) {
+                st->accepted = false;
+                st->done = true;
+                DestroyWindow(hwnd);
+                return 0;
+            }
+            break;
+        }
+        case WM_CLOSE:
+            if (st) { st->accepted = false; st->done = true; }
+            DestroyWindow(hwnd);
+            return 0;
+    }
+    return DefWindowProcW(hwnd, msg, wParam, lParam);
+}
+
+bool promptRenameSkin(AppState& app, const std::string& id) {
+    const SkinSpec* s = app.skins.find(id);
+    if (!s) return false;
+    static bool reg = false;
+    const wchar_t* clsName = L"KuroCatRenameSkinDlg";
+    HINSTANCE inst = GetModuleHandleW(nullptr);
+    if (!reg) {
+        WNDCLASSW wc = {};
+        wc.lpfnWndProc = RenameSkinDlgProc;
+        wc.hInstance = inst;
+        wc.lpszClassName = clsName;
+        wc.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);
+        wc.hCursor = LoadCursorW(nullptr, IDC_ARROW);
+        RegisterClassW(&wc);
+        reg = true;
+    }
+    bool en = app.settings.isEnglish;
+    RenameDialogState st;
+    st.value = utf8ToWide(s->name);
+
+    int w = 360, h = 150;
+    int sx = (GetSystemMetrics(SM_CXSCREEN) - w) / 2;
+    int sy = (GetSystemMetrics(SM_CYSCREEN) - h) / 2;
+    HWND dlg = CreateWindowExW(
+        WS_EX_TOPMOST | WS_EX_DLGMODALFRAME,
+        clsName,
+        en ? L"Rename Skin" : L"重命名皮肤",
+        WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_VISIBLE,
+        sx, sy, w, h,
+        app.settingsWnd ? app.settingsWnd : app.menuOwnerHwnd,
+        nullptr, inst, &st
+    );
+    if (!dlg) return false;
+
+    HFONT font = (HFONT)GetStockObject(DEFAULT_GUI_FONT);
+    HWND lbl = CreateWindowExW(0, L"STATIC",
+        en ? L"Enter a new skin name (max 40 chars):" : L"请输入新的皮肤名称（最多 40 字）：",
+        WS_CHILD | WS_VISIBLE, 18, 16, 316, 20, dlg, nullptr, inst, nullptr);
+    st.editHwnd = CreateWindowExW(WS_EX_CLIENTEDGE, L"EDIT", st.value.c_str(),
+        WS_CHILD | WS_VISIBLE | WS_TABSTOP | ES_AUTOHSCROLL, 18, 42, 316, 24, dlg, (HMENU)1001, inst, nullptr);
+    HWND okBtn = CreateWindowExW(0, L"BUTTON", en ? L"Save" : L"保存",
+        WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_DEFPUSHBUTTON, 174, 80, 76, 26, dlg, (HMENU)IDOK, inst, nullptr);
+    HWND cancelBtn = CreateWindowExW(0, L"BUTTON", en ? L"Cancel" : L"取消",
+        WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_PUSHBUTTON, 258, 80, 76, 26, dlg, (HMENU)IDCANCEL, inst, nullptr);
+    for (HWND c : {lbl, st.editHwnd, okBtn, cancelBtn}) SendMessageW(c, WM_SETFONT, (WPARAM)font, TRUE);
+    SendMessageW(st.editHwnd, EM_SETLIMITTEXT, 40, 0);
+    SendMessageW(st.editHwnd, EM_SETSEL, 0, -1);
+    SetForegroundWindow(dlg);
+    SetFocus(st.editHwnd);
+
+    MSG m;
+    while (!st.done && GetMessageW(&m, nullptr, 0, 0) > 0) {
+        if (m.message == WM_KEYDOWN && m.wParam == VK_RETURN) {
+            PostMessageW(dlg, WM_COMMAND, IDOK, 0);
+            continue;
+        }
+        if (m.message == WM_KEYDOWN && m.wParam == VK_ESCAPE) {
+            PostMessageW(dlg, WM_COMMAND, IDCANCEL, 0);
+            continue;
+        }
+        if (!IsDialogMessageW(dlg, &m)) {
+            TranslateMessage(&m);
+            DispatchMessageW(&m);
+        }
+    }
+    if (!st.accepted) return false;
+
+    std::string newNameUtf8 = wideToUtf8(st.value);
+    std::string newId, err;
+    if (!app.skins.rename(id, newNameUtf8, newId, err)) {
+        MessageBoxW(app.menuOwnerHwnd, utf8ToWide(err).c_str(),
+                    en ? L"Rename Failed" : L"重命名失败", MB_OK | MB_ICONWARNING | MB_TOPMOST);
+        return false;
+    }
+    if (app.settings.customSkin == id) {
+        app.settings.customSkin = newId;
+        app.settings.saveToRegistry();
+    }
+    refreshDressingRoom(app);
+    refreshSettingsWindow(app);
+    return true;
 }
 
 void confirmDeleteSkin(AppState& app, const std::string& id) {
@@ -1380,6 +1606,7 @@ void confirmDeleteSkin(AppState& app, const std::string& id) {
     }
     if (app.settings.customSkin == removing) { app.settings.customSkin.clear(); app.settings.saveToRegistry(); }
     refreshDressingRoom(app);
+    refreshSettingsWindow(app);
 }
 
 void confirmDeleteKeyboardSkin(AppState& app, const std::string& id) {
@@ -1401,6 +1628,8 @@ namespace settings_ui {
 enum CtrlId : int {
     ID_COAT_COMBO = 2001,
     ID_BTN_DRESSING,
+    ID_BTN_RENAME_SKIN,
+    ID_BTN_DEL_SKIN,
     ID_EYE_COMBO,
     ID_KB_COMBO,
     ID_BTN_IMPORT_KB,
@@ -1419,10 +1648,12 @@ enum CtrlId : int {
     ID_CHK_MOUSE_BADGES,
     ID_CHK_LEGENDS,
     ID_CHK_MARQUEE,
+    ID_CHK_LEVEL_KEYBOARD,
     ID_TYPING_LIMB_COMBO,
     ID_TABLET_COMBO,
     ID_CHK_TOPMOST,
     ID_CHK_AUTOHIDE_FS,
+    ID_CHK_AUTO_HEADPHONES,
     ID_CHK_CLICKTHROUGH,
     ID_CHK_AUTOSTART,
     ID_CHK_RUN_ADMIN,
@@ -1432,7 +1663,11 @@ enum CtrlId : int {
     ID_LANG_COMBO,
     ID_BTN_SKINS_DIR,
     ID_BTN_KB_DIR,
-    ID_BTN_EDIT_MODE
+    ID_BTN_EDIT_MODE,
+    ID_SKINS_DIR_PATH,
+    ID_BTN_CHOOSE_SKINS_DIR,
+    ID_BTN_OPEN_SKINS_DIR,
+    ID_BTN_RESET_SKINS_DIR
 };
 
 bool isWindowsDarkMode() {
@@ -1481,12 +1716,18 @@ void rebuildCombosAndSync(AppState& app) {
         for (int i = 0; i < 6; ++i) SendMessageW(coatCb, CB_ADDSTRING, 0, (LPARAM)builtins[i]);
         int sel = (int)app.settings.coatTheme;
         for (size_t i = 0; i < app.skins.skins.size(); ++i) {
-            SendMessageW(coatCb, CB_ADDSTRING, 0, (LPARAM)utf8ToWide(app.skins.skins[i].name).c_str());
+            SendMessageW(coatCb, CB_ADDSTRING, 0, (LPARAM)utf8ToWide(app.skins.displayName(app.skins.skins[i])).c_str());
             if (!app.settings.customSkin.empty() && app.skins.skins[i].id == app.settings.customSkin) {
                 sel = 6 + (int)i;
             }
         }
         SendMessageW(coatCb, CB_SETCURSEL, (WPARAM)sel, 0);
+        bool hasCustom = !app.settings.customSkin.empty() && app.skins.find(app.settings.customSkin) != nullptr;
+        if (HWND hRen = GetDlgItem(hwnd, ID_BTN_RENAME_SKIN)) EnableWindow(hRen, hasCustom ? TRUE : FALSE);
+        if (HWND hDel = GetDlgItem(hwnd, ID_BTN_DEL_SKIN)) {
+            EnableWindow(hDel, hasCustom ? TRUE : FALSE);
+            InvalidateRect(hDel, nullptr, TRUE);
+        }
     }
 
     // Eye combo
@@ -1552,8 +1793,10 @@ void rebuildCombosAndSync(AppState& app) {
     setChk(ID_CHK_MOUSE_BADGES, app.settings.showMouseBadges);
     setChk(ID_CHK_LEGENDS, app.settings.showKeyLegends);
     setChk(ID_CHK_MARQUEE, app.settings.keyboardMarquee);
+    setChk(ID_CHK_LEVEL_KEYBOARD, app.settings.levelKeyboard);
     setChk(ID_CHK_TOPMOST, app.settings.alwaysOnTop);
     setChk(ID_CHK_AUTOHIDE_FS, app.settings.autoHideFullscreen);
+    setChk(ID_CHK_AUTO_HEADPHONES, app.settings.autoHeadphonesOnMusic);
     setChk(ID_CHK_CLICKTHROUGH, app.settings.fullClickThrough);
     setChk(ID_CHK_AUTOSTART, isAutoStartEnabled());
     setChk(ID_CHK_RUN_ADMIN, app.settings.runAsAdmin);
@@ -1569,7 +1812,90 @@ void rebuildCombosAndSync(AppState& app) {
     SendMessageW(GetDlgItem(hwnd, ID_OBS_COMBO), CB_SETCURSEL, (WPARAM)app.settings.obsCaptureMode, 0);
     SendMessageW(GetDlgItem(hwnd, ID_LANG_COMBO), CB_SETCURSEL, (WPARAM)(app.settings.isEnglish ? 1 : 0), 0);
 
+    if (HWND hDir = GetDlgItem(hwnd, ID_SKINS_DIR_PATH)) {
+        SetWindowTextW(hDir, SkinLibrary::dir().c_str());
+    }
+    if (HWND hResetDir = GetDlgItem(hwnd, ID_BTN_RESET_SKINS_DIR)) {
+        EnableWindow(hResetDir, SkinLibrary::isUsingCustomDir() ? TRUE : FALSE);
+    }
+
     app.settingsUpdating = false;
+}
+
+bool pickFolderDialog(HWND owner, const wchar_t* title, const std::wstring& initialDir, std::wstring& outPath) {
+    outPath.clear();
+    using CoInitExFn = HRESULT (WINAPI*)(LPVOID, DWORD);
+    using CoCreateInstFn = HRESULT (WINAPI*)(REFCLSID, LPUNKNOWN, DWORD, REFIID, LPVOID*);
+    using CoTaskMemFreeFn = void (WINAPI*)(LPVOID);
+    using CoUninitFn = void (WINAPI*)();
+    if (HMODULE ole = LoadLibraryW(L"ole32.dll")) {
+        auto pCoInit = (CoInitExFn)(void*)GetProcAddress(ole, "CoInitializeEx");
+        auto pCoCreate = (CoCreateInstFn)(void*)GetProcAddress(ole, "CoCreateInstance");
+        auto pCoFree = (CoTaskMemFreeFn)(void*)GetProcAddress(ole, "CoTaskMemFree");
+        auto pCoUninit = (CoUninitFn)(void*)GetProcAddress(ole, "CoUninitialize");
+        if (pCoInit && pCoCreate && pCoFree && pCoUninit) {
+            static const GUID kCLSID_FileOpenDialog = {0xDC1C5A9C, 0xE88A, 0x4DDE, {0xA5, 0xA1, 0x60, 0xF8, 0x2A, 0x20, 0xAE, 0xF7}};
+            static const GUID kIID_IFileDialog      = {0x42F85136, 0xDB7E, 0x439C, {0x85, 0xF1, 0xE4, 0x07, 0x5D, 0x13, 0x5F, 0xC8}};
+            static const GUID kIID_IShellItem       = {0x43826D1E, 0xE718, 0x42EE, {0xBC, 0x55, 0xA1, 0xE2, 0x61, 0xC3, 0x7B, 0xFE}};
+            HRESULT hrInit = pCoInit(nullptr, 0x2 | 0x4);
+            bool needUninit = SUCCEEDED(hrInit);
+            if (SUCCEEDED(hrInit) || hrInit == RPC_E_CHANGED_MODE) {
+                IFileDialog* pfd = nullptr;
+                if (SUCCEEDED(pCoCreate(kCLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER, kIID_IFileDialog, (void**)&pfd)) && pfd) {
+                    DWORD opts = 0;
+                    if (SUCCEEDED(pfd->GetOptions(&opts))) {
+                        pfd->SetOptions(opts | FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM | FOS_PATHMUSTEXIST);
+                    }
+                    if (title) pfd->SetTitle(title);
+                    if (!initialDir.empty()) {
+                        using SHCreateItemFn = HRESULT (WINAPI*)(PCWSTR, IBindCtx*, REFIID, void**);
+                        if (HMODULE sh32 = GetModuleHandleW(L"shell32.dll")) {
+                            auto pCreateItem = (SHCreateItemFn)(void*)GetProcAddress(sh32, "SHCreateItemFromParsingName");
+                            IShellItem* initItem = nullptr;
+                            if (pCreateItem && SUCCEEDED(pCreateItem(initialDir.c_str(), nullptr, kIID_IShellItem, (void**)&initItem)) && initItem) {
+                                pfd->SetFolder(initItem);
+                                initItem->Release();
+                            }
+                        }
+                    }
+                    bool picked = false;
+                    if (SUCCEEDED(pfd->Show(owner))) {
+                        IShellItem* item = nullptr;
+                        if (SUCCEEDED(pfd->GetResult(&item)) && item) {
+                            PWSTR psz = nullptr;
+                            if (SUCCEEDED(item->GetDisplayName(SIGDN_FILESYSPATH, &psz)) && psz) {
+                                outPath = psz;
+                                pCoFree(psz);
+                                picked = !outPath.empty();
+                            }
+                            item->Release();
+                        }
+                    }
+                    pfd->Release();
+                    if (needUninit) pCoUninit();
+                    FreeLibrary(ole);
+                    return picked;
+                }
+                if (needUninit) pCoUninit();
+            }
+        }
+        FreeLibrary(ole);
+    }
+    BROWSEINFOW bi = {};
+    bi.hwndOwner = owner;
+    bi.lpszTitle = title;
+    bi.ulFlags = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE;
+    PIDLIST_ABSOLUTE pidl = SHBrowseForFolderW(&bi);
+    if (!pidl) return false;
+    wchar_t buf[MAX_PATH] = {0};
+    bool ok = SHGetPathFromIDListW(pidl, buf) != FALSE && buf[0] != L'\0';
+    if (ok) outPath = buf;
+    if (HMODULE ole = LoadLibraryW(L"ole32.dll")) {
+        auto pCoFree = (CoTaskMemFreeFn)(void*)GetProcAddress(ole, "CoTaskMemFree");
+        if (pCoFree) pCoFree(pidl);
+        FreeLibrary(ole);
+    }
+    return ok;
 }
 } // namespace settings_ui
 
@@ -1579,6 +1905,16 @@ void refreshSettingsWindow(AppState& app) {
     if (app.settingsWnd && IsWindow(app.settingsWnd)) {
         settings_ui::rebuildCombosAndSync(app);
     }
+}
+
+void applySkinsDirectory(AppState& app, const std::wstring& dirW) {
+    std::wstring cleaned = SkinLibrary::trimmedDir(dirW);
+    SkinLibrary::customDir() = cleaned;
+    app.settings.customSkinsDir = wideToUtf8(cleaned);
+    app.settings.saveToRegistry();
+    app.skins.reload();
+    refreshDressingRoom(app);
+    refreshSettingsWindow(app);
 }
 
 LRESULT CALLBACK settingsWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
@@ -1640,6 +1976,32 @@ LRESULT CALLBACK settingsWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPar
             }
             return 0;
         }
+        case WM_DRAWITEM: {
+            auto* dis = (DRAWITEMSTRUCT*)lParam;
+            if (dis && dis->CtlID == settings_ui::ID_BTN_DEL_SKIN) {
+                bool disabled = (dis->itemState & ODS_DISABLED) != 0;
+                bool pressed = (dis->itemState & ODS_SELECTED) != 0;
+                COLORREF bgCol = disabled ? RGB(224, 224, 224) : (pressed ? RGB(175, 35, 35) : RGB(217, 56, 56));
+                COLORREF txtCol = disabled ? RGB(145, 145, 145) : RGB(255, 255, 255);
+                HBRUSH br = CreateSolidBrush(bgCol);
+                FillRect(dis->hDC, &dis->rcItem, br);
+                DeleteObject(br);
+                HPEN pen = CreatePen(PS_SOLID, 1, disabled ? RGB(195, 195, 195) : RGB(165, 30, 30));
+                HGDIOBJ oldPen = SelectObject(dis->hDC, pen);
+                HGDIOBJ oldBr = SelectObject(dis->hDC, GetStockObject(NULL_BRUSH));
+                Rectangle(dis->hDC, dis->rcItem.left, dis->rcItem.top, dis->rcItem.right, dis->rcItem.bottom);
+                SelectObject(dis->hDC, oldPen);
+                SelectObject(dis->hDC, oldBr);
+                DeleteObject(pen);
+                SetBkMode(dis->hDC, TRANSPARENT);
+                SetTextColor(dis->hDC, txtCol);
+                wchar_t txt[64] = {};
+                GetWindowTextW(dis->hwndItem, txt, 63);
+                DrawTextW(dis->hDC, txt, -1, &dis->rcItem, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+                return TRUE;
+            }
+            break;
+        }
         case WM_COMMAND: {
             if (!app || app->settingsUpdating) return 0;
             int id = LOWORD(wParam);
@@ -1649,6 +2011,7 @@ LRESULT CALLBACK settingsWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPar
                 int sel = (int)SendMessageW((HWND)lParam, CB_GETCURSEL, 0, 0);
                 if (sel < 0) return 0;
                 if (id == ID_COAT_COMBO) {
+                    app->settings.overrideSkinIris = false;
                     if (sel < 6) {
                         app->settings.customSkin.clear();
                         app->settings.coatTheme = (CatCoatTheme)sel;
@@ -1665,7 +2028,9 @@ LRESULT CALLBACK settingsWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPar
                     }
                     app->settings.saveToRegistry();
                     refreshDressingRoom(*app);
+                    refreshSettingsWindow(*app);
                 } else if (id == ID_EYE_COMBO && sel <= (int)EyeColorTheme::OliveGold) {
+                    app->settings.overrideSkinIris = true;
                     app->settings.eyeTheme = (EyeColorTheme)sel;
                     app->settings.saveToRegistry();
                 } else if (id == ID_KB_COMBO) {
@@ -1704,6 +2069,12 @@ LRESULT CALLBACK settingsWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPar
                 auto isChk = [&](int cid) { return SendMessageW(GetDlgItem(hwnd, cid), BM_GETCHECK, 0, 0) == BST_CHECKED; };
                 switch (id) {
                     case ID_BTN_DRESSING: showDressingRoom(*app); break;
+                    case ID_BTN_RENAME_SKIN:
+                        if (!app->settings.customSkin.empty()) promptRenameSkin(*app, app->settings.customSkin);
+                        break;
+                    case ID_BTN_DEL_SKIN:
+                        if (!app->settings.customSkin.empty()) confirmDeleteSkin(*app, app->settings.customSkin);
+                        break;
                     case ID_BTN_IMPORT_KB: chooseKeyboardSkinFile(*app); break;
                     case ID_BTN_ROT_ZERO:
                         app->settings.rotationDeg = 0.0f;
@@ -1758,6 +2129,11 @@ LRESULT CALLBACK settingsWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPar
                         app->settings.keyboardMarquee = isChk(id);
                         app->settings.saveToRegistry();
                         break;
+                    case ID_CHK_LEVEL_KEYBOARD:
+                        app->settings.levelKeyboard = isChk(id);
+                        KeyboardLayout::levelKeyboard() = app->settings.levelKeyboard;
+                        app->settings.saveToRegistry();
+                        break;
                     case ID_CHK_TOPMOST:
                         app->settings.alwaysOnTop = isChk(id);
                         applyWindowScaleAndPosition(*app, false, true);
@@ -1770,6 +2146,11 @@ LRESULT CALLBACK settingsWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPar
                             if (app->isVisible) { ShowWindow(app->hwnd, SW_SHOWNOACTIVATE); assertTopmost(*app); }
                         }
                         app->nextHousekeepingTime = 0.0;
+                        break;
+                    case ID_CHK_AUTO_HEADPHONES:
+                        app->settings.autoHeadphonesOnMusic = isChk(id);
+                        if (!app->settings.autoHeadphonesOnMusic) app->physics.isMusicPlaying = false;
+                        app->settings.saveToRegistry();
                         break;
                     case ID_CHK_CLICKTHROUGH:
                         app->settings.fullClickThrough = isChk(id);
@@ -1799,8 +2180,21 @@ LRESULT CALLBACK settingsWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPar
                         applyOBSMode(*app);
                         break;
                     case ID_BTN_SKINS_DIR:
+                    case ID_BTN_OPEN_SKINS_DIR:
                         SkinLibrary::ensureDir();
                         ShellExecuteW(nullptr, L"open", SkinLibrary::dir().c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+                        break;
+                    case ID_BTN_CHOOSE_SKINS_DIR: {
+                        std::wstring chosen;
+                        if (settings_ui::pickFolderDialog(hwnd,
+                                app->settings.isEnglish ? L"Choose Skins Folder" : L"\u9009\u62E9\u76AE\u80A4\u6587\u4EF6\u5939",
+                                SkinLibrary::dir(), chosen)) {
+                            applySkinsDirectory(*app, chosen);
+                        }
+                        break;
+                    }
+                    case ID_BTN_RESET_SKINS_DIR:
+                        applySkinsDirectory(*app, L"");
                         break;
                     case ID_BTN_KB_DIR:
                         KeyboardSkinLibrary::ensureDir();
@@ -1846,8 +2240,20 @@ void showSettingsWindow(AppState& app) {
     }
 
     HDC screen = GetDC(nullptr);
-    float k = GetDeviceCaps(screen, LOGPIXELSY) / 96.0f;
+    float dpiScale = GetDeviceCaps(screen, LOGPIXELSY) / 96.0f;
     ReleaseDC(nullptr, screen);
+
+    const int W = 540, H = 740;
+    const DWORD style = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU;
+    RECT frameRc = { 0, 0, 0, 0 };
+    AdjustWindowRectEx(&frameRc, style, FALSE, 0);
+    int frameW = frameRc.right - frameRc.left, frameH = frameRc.bottom - frameRc.top;
+    RECT work = {};
+    SystemParametersInfoW(SPI_GETWORKAREA, 0, &work, 0);
+    int maxClientW = std::max(320, (int)(work.right - work.left) - frameW - 24);
+    int maxClientH = std::max(360, (int)(work.bottom - work.top) - frameH - 24);
+    float k = std::min({ dpiScale, (float)maxClientW / (float)W, (float)maxClientH / (float)H });
+    if (k < 0.65f) k = 0.65f;
     auto px = [&](int v) { return (int)std::lround(v * k); };
 
     app.settingsDark = settings_ui::isWindowsDarkMode();
@@ -1860,16 +2266,14 @@ void showSettingsWindow(AppState& app) {
     bool en = app.settings.isEnglish;
     auto tr = [&](const wchar_t* zh, const wchar_t* eng) -> const wchar_t* { return en ? eng : zh; };
 
-    const int W = 540, H = 678;
-    const DWORD style = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU;
     RECT rc = { 0, 0, px(W), px(H) };
     AdjustWindowRectEx(&rc, style, FALSE, 0);
     int winW = rc.right - rc.left, winH = rc.bottom - rc.top;
-    RECT work = {};
-    SystemParametersInfoW(SPI_GETWORKAREA, 0, &work, 0);
+    int posX = std::max((int)work.left, (int)(work.left + work.right - winW) / 2);
+    int posY = std::max((int)work.top, (int)(work.top + work.bottom - winH) / 2);
     HWND win = CreateWindowExW(0, SETTINGS_WINDOW_CLASS,
         tr(L"KuroCat \u8BBE\u7F6E", L"KuroCat Settings"), style,
-        (work.left + work.right - winW) / 2, (work.top + work.bottom - winH) / 2,
+        posX, posY,
         winW, winH, nullptr, nullptr, inst, nullptr);
     if (!win) return;
     app.settingsWnd = win;
@@ -1884,82 +2288,92 @@ void showSettingsWindow(AppState& app) {
 
     using namespace settings_ui;
     // Section 1: Appearance & Orientation
-    addCtrl(L"BUTTON", tr(L"\u5916\u89C2\u4E0E\u65B9\u5411", L"Appearance & Orientation"), BS_GROUPBOX, 14, 10, 512, 232, 0, true);
+    addCtrl(L"BUTTON", tr(L"\u5916\u89C2\u4E0E\u65B9\u5411", L"Appearance & Orientation"), BS_GROUPBOX, 14, 10, 512, 264, 0, true);
 
     addCtrl(L"STATIC", tr(L"\u732B\u54AA\u76AE\u80A4", L"Cat Skin"), SS_LEFT, 28, 38, 76, 20, 0);
-    addCtrl(L"COMBOBOX", L"", CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP, 110, 34, 290, 220, ID_COAT_COMBO);
-    addCtrl(L"BUTTON", tr(L"\u6362\u88C5\u95F4\u2026", L"Wardrobe..."), BS_PUSHBUTTON | WS_TABSTOP, 410, 34, 102, 24, ID_BTN_DRESSING);
+    addCtrl(L"COMBOBOX", L"", CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP, 110, 34, 186, 220, ID_COAT_COMBO);
+    addCtrl(L"BUTTON", tr(L"\u6362\u88C5\u95F4\u2026", L"Wardrobe"), BS_PUSHBUTTON | WS_TABSTOP, 302, 34, 74, 24, ID_BTN_DRESSING);
+    addCtrl(L"BUTTON", tr(L"\u270F \u6539\u540D", L"\u270F Name"), BS_PUSHBUTTON | WS_TABSTOP, 380, 34, 62, 24, ID_BTN_RENAME_SKIN);
+    addCtrl(L"BUTTON", tr(L"\U0001F5D1 \u5220\u9664", L"\U0001F5D1 Del"), BS_OWNERDRAW | WS_TABSTOP, 446, 34, 66, 24, ID_BTN_DEL_SKIN, true);
 
-    addCtrl(L"STATIC", tr(L"\u77B3\u8272\u5207\u6362", L"Eye Color"), SS_LEFT, 28, 70, 76, 20, 0);
-    addCtrl(L"COMBOBOX", L"", CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP, 110, 66, 290, 220, ID_EYE_COMBO);
-    addCtrl(L"BUTTON", tr(L"\u6846\u9009\u8C03\u6574", L"Edit Box"), BS_PUSHBUTTON | WS_TABSTOP, 410, 66, 102, 24, ID_BTN_EDIT_MODE);
+    addCtrl(L"STATIC", tr(L"\u76AE\u80A4\u76EE\u5F55", L"Skins Dir"), SS_LEFT, 28, 70, 76, 20, 0);
+    addCtrl(L"STATIC", L"", SS_LEFT | SS_PATHELLIPSIS | SS_NOPREFIX, 110, 70, 178, 20, ID_SKINS_DIR_PATH);
+    addCtrl(L"BUTTON", tr(L"\u9009\u62E9\u6587\u4EF6\u5939\u2026", L"Choose..."), BS_PUSHBUTTON | WS_TABSTOP, 292, 66, 100, 24, ID_BTN_CHOOSE_SKINS_DIR);
+    addCtrl(L"BUTTON", tr(L"\u6253\u5F00", L"Open"), BS_PUSHBUTTON | WS_TABSTOP, 396, 66, 50, 24, ID_BTN_OPEN_SKINS_DIR);
+    addCtrl(L"BUTTON", tr(L"\u9ED8\u8BA4", L"Reset"), BS_PUSHBUTTON | WS_TABSTOP, 450, 66, 62, 24, ID_BTN_RESET_SKINS_DIR);
 
-    addCtrl(L"STATIC", tr(L"\u952E\u76D8\u914D\u8272", L"Keyboard"), SS_LEFT, 28, 102, 76, 20, 0);
-    addCtrl(L"COMBOBOX", L"", CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP, 110, 98, 290, 220, ID_KB_COMBO);
-    addCtrl(L"BUTTON", tr(L"\u5BFC\u5165\u952E\u76D8\u2026", L"Import..."), BS_PUSHBUTTON | WS_TABSTOP, 410, 98, 102, 24, ID_BTN_IMPORT_KB);
+    addCtrl(L"STATIC", tr(L"\u77B3\u8272\u5207\u6362", L"Eye Color"), SS_LEFT, 28, 102, 76, 20, 0);
+    addCtrl(L"COMBOBOX", L"", CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP, 110, 98, 290, 220, ID_EYE_COMBO);
+    addCtrl(L"BUTTON", tr(L"\u6846\u9009\u8C03\u6574", L"Edit Box"), BS_PUSHBUTTON | WS_TABSTOP, 410, 98, 102, 24, ID_BTN_EDIT_MODE);
 
-    addCtrl(L"STATIC", tr(L"\u7F29\u653E\u5927\u5C0F", L"Pet Scale"), SS_LEFT, 28, 136, 76, 20, 0);
-    HWND scaleSb = addCtrl(L"SCROLLBAR", L"", SBS_HORZ | WS_TABSTOP, 110, 136, 290, 18, ID_SCALE_SCROLL);
+    addCtrl(L"STATIC", tr(L"\u952E\u76D8\u914D\u8272", L"Keyboard"), SS_LEFT, 28, 134, 76, 20, 0);
+    addCtrl(L"COMBOBOX", L"", CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP, 110, 130, 290, 220, ID_KB_COMBO);
+    addCtrl(L"BUTTON", tr(L"\u5BFC\u5165\u952E\u76D8\u2026", L"Import..."), BS_PUSHBUTTON | WS_TABSTOP, 410, 130, 102, 24, ID_BTN_IMPORT_KB);
+
+    addCtrl(L"STATIC", tr(L"\u7F29\u653E\u5927\u5C0F", L"Pet Scale"), SS_LEFT, 28, 168, 76, 20, 0);
+    HWND scaleSb = addCtrl(L"SCROLLBAR", L"", SBS_HORZ | WS_TABSTOP, 110, 168, 290, 18, ID_SCALE_SCROLL);
     SetScrollRange(scaleSb, SB_CTL, 45, 250, FALSE);
-    addCtrl(L"STATIC", L"100%", SS_RIGHT, 410, 136, 48, 20, ID_SCALE_VAL);
+    addCtrl(L"STATIC", L"100%", SS_RIGHT, 410, 168, 48, 20, ID_SCALE_VAL);
 
-    addCtrl(L"STATIC", tr(L"\u671D\u5411\u89D2\u5EA6", L"Rotation"), SS_LEFT, 28, 168, 76, 20, 0);
-    HWND rotSb = addCtrl(L"SCROLLBAR", L"", SBS_HORZ | WS_TABSTOP, 110, 168, 290, 18, ID_ROT_SCROLL);
+    addCtrl(L"STATIC", tr(L"\u671D\u5411\u89D2\u5EA6", L"Rotation"), SS_LEFT, 28, 200, 76, 20, 0);
+    HWND rotSb = addCtrl(L"SCROLLBAR", L"", SBS_HORZ | WS_TABSTOP, 110, 200, 290, 18, ID_ROT_SCROLL);
     SetScrollRange(rotSb, SB_CTL, -180, 180, FALSE);
-    addCtrl(L"STATIC", L"0\u00B0", SS_RIGHT, 408, 168, 42, 20, ID_ROT_VAL);
-    addCtrl(L"BUTTON", tr(L"\u5F52\u96F6", L"0\u00B0"), BS_PUSHBUTTON | WS_TABSTOP, 458, 164, 54, 24, ID_BTN_ROT_ZERO);
+    addCtrl(L"STATIC", L"0\u00B0", SS_RIGHT, 408, 200, 42, 20, ID_ROT_VAL);
+    addCtrl(L"BUTTON", tr(L"\u5F52\u96F6", L"0\u00B0"), BS_PUSHBUTTON | WS_TABSTOP, 458, 196, 54, 24, ID_BTN_ROT_ZERO);
 
-    addCtrl(L"BUTTON", tr(L"\u6C34\u5E73\u7FFB\u8F6C", L"Flip Horizontal"), BS_AUTOCHECKBOX | WS_TABSTOP, 28, 202, 140, 22, ID_CHK_FLIP);
-    addCtrl(L"BUTTON", tr(L"\u767D\u8272\u8D34\u7EB8\u63CF\u8FB9", L"White Sticker Outline"), BS_AUTOCHECKBOX | WS_TABSTOP, 180, 202, 180, 22, ID_CHK_OUTLINE);
-    addCtrl(L"BUTTON", tr(L"\u91CD\u7F6E\u4F4D\u7F6E\u4E0E\u671D\u5411", L"Reset Pose"), BS_PUSHBUTTON | WS_TABSTOP, 384, 200, 128, 24, ID_BTN_RESET_POS);
+    addCtrl(L"BUTTON", tr(L"\u6C34\u5E73\u7FFB\u8F6C", L"Flip Horizontal"), BS_AUTOCHECKBOX | WS_TABSTOP, 28, 234, 140, 22, ID_CHK_FLIP);
+    addCtrl(L"BUTTON", tr(L"\u767D\u8272\u8D34\u7EB8\u63CF\u8FB9", L"White Sticker Outline"), BS_AUTOCHECKBOX | WS_TABSTOP, 180, 234, 180, 22, ID_CHK_OUTLINE);
+    addCtrl(L"BUTTON", tr(L"\u91CD\u7F6E\u4F4D\u7F6E\u4E0E\u671D\u5411", L"Reset Pose"), BS_PUSHBUTTON | WS_TABSTOP, 384, 232, 128, 24, ID_BTN_RESET_POS);
 
     // Section 2: Interaction & Effects
-    addCtrl(L"BUTTON", tr(L"\u4E92\u52A8\u4E0E\u7279\u6548", L"Interaction & Effects"), BS_GROUPBOX, 14, 252, 512, 208, 0, true);
-    addCtrl(L"BUTTON", tr(L"\u62CE\u8D77\u62D6\u62FD\u52A8\u753B", L"Scruff-Drag Lift Animation"), BS_AUTOCHECKBOX | WS_TABSTOP, 28, 278, 236, 22, ID_CHK_DRAG_ANIM);
-    addCtrl(L"BUTTON", tr(L"\u9AD8\u901F\u6253\u5B57\u751F\u6C14\u8868\u60C5", L"Angry Expression on Fast Typing"), BS_AUTOCHECKBOX | WS_TABSTOP, 276, 278, 236, 22, ID_CHK_ANGER);
-    addCtrl(L"BUTTON", tr(L"\u6478\u732B\u4E92\u52A8\u4E0E\u5495\u565C\u7279\u6548", L"Petting & Purr Sparkles"), BS_AUTOCHECKBOX | WS_TABSTOP, 28, 306, 236, 22, ID_CHK_PET);
-    addCtrl(L"BUTTON", tr(L"\u663E\u793A\u6309\u952E\u6C14\u6CE1", L"Show Keyboard Key Badges"), BS_AUTOCHECKBOX | WS_TABSTOP, 276, 306, 236, 22, ID_CHK_BADGES);
-    addCtrl(L"BUTTON", tr(L"\u663E\u793A\u9F20\u6807\u70B9\u51FB", L"Show Mouse Click Badges"), BS_AUTOCHECKBOX | WS_TABSTOP, 28, 334, 236, 22, ID_CHK_MOUSE_BADGES);
-    addCtrl(L"BUTTON", tr(L"\u663E\u793A\u952E\u76D8\u5B57\u7B26", L"Show Keycap Legends"), BS_AUTOCHECKBOX | WS_TABSTOP, 276, 334, 236, 22, ID_CHK_LEGENDS);
-    addCtrl(L"BUTTON", tr(L"\u952E\u76D8\u8DD1\u9A6C\u706F\u6D41\u5149", L"Keyboard RGB Marquee"), BS_AUTOCHECKBOX | WS_TABSTOP, 28, 362, 236, 22, ID_CHK_MARQUEE);
+    addCtrl(L"BUTTON", tr(L"\u4E92\u52A8\u4E0E\u7279\u6548", L"Interaction & Effects"), BS_GROUPBOX, 14, 284, 512, 208, 0, true);
+    addCtrl(L"BUTTON", tr(L"\u62CE\u8D77\u62D6\u62FD\u52A8\u753B", L"Scruff-Drag Lift Animation"), BS_AUTOCHECKBOX | WS_TABSTOP, 28, 310, 236, 22, ID_CHK_DRAG_ANIM);
+    addCtrl(L"BUTTON", tr(L"\u9AD8\u901F\u6253\u5B57\u751F\u6C14\u8868\u60C5", L"Angry Expression on Fast Typing"), BS_AUTOCHECKBOX | WS_TABSTOP, 276, 310, 236, 22, ID_CHK_ANGER);
+    addCtrl(L"BUTTON", tr(L"\u6478\u732B\u4E92\u52A8\u4E0E\u5495\u565C\u7279\u6548", L"Petting & Purr Sparkles"), BS_AUTOCHECKBOX | WS_TABSTOP, 28, 338, 236, 22, ID_CHK_PET);
+    addCtrl(L"BUTTON", tr(L"\u663E\u793A\u6309\u952E\u6C14\u6CE1", L"Show Keyboard Key Badges"), BS_AUTOCHECKBOX | WS_TABSTOP, 276, 338, 236, 22, ID_CHK_BADGES);
+    addCtrl(L"BUTTON", tr(L"\u663E\u793A\u9F20\u6807\u70B9\u51FB", L"Show Mouse Click Badges"), BS_AUTOCHECKBOX | WS_TABSTOP, 28, 366, 236, 22, ID_CHK_MOUSE_BADGES);
+    addCtrl(L"BUTTON", tr(L"\u663E\u793A\u952E\u76D8\u5B57\u7B26", L"Show Keycap Legends"), BS_AUTOCHECKBOX | WS_TABSTOP, 276, 366, 236, 22, ID_CHK_LEGENDS);
+    addCtrl(L"BUTTON", tr(L"\u952E\u76D8\u8DD1\u9A6C\u706F\u6D41\u5149", L"Keyboard RGB Marquee"), BS_AUTOCHECKBOX | WS_TABSTOP, 28, 394, 236, 22, ID_CHK_MARQUEE);
+    addCtrl(L"BUTTON", tr(L"\u952E\u76D8\u6C34\u5E73\u6446\u653E", L"Level Keyboard"), BS_AUTOCHECKBOX | WS_TABSTOP, 276, 394, 236, 22, ID_CHK_LEVEL_KEYBOARD);
 
-    addCtrl(L"STATIC", tr(L"\u591A\u952E\u6253\u5B57", L"Multi-Key"), SS_LEFT, 28, 394, 90, 20, 0);
-    HWND limbCb = addCtrl(L"COMBOBOX", L"", CBS_DROPDOWNLIST | WS_TABSTOP, 124, 390, 388, 140, ID_TYPING_LIMB_COMBO);
+    addCtrl(L"STATIC", tr(L"\u591A\u952E\u6253\u5B57", L"Multi-Key"), SS_LEFT, 28, 426, 90, 20, 0);
+    HWND limbCb = addCtrl(L"COMBOBOX", L"", CBS_DROPDOWNLIST | WS_TABSTOP, 124, 422, 388, 140, ID_TYPING_LIMB_COMBO);
     SendMessageW(limbCb, CB_ADDSTRING, 0, (LPARAM)tr(L"\u540E\u811A + \u5C3E\u5DF4\uFF083\u952E\u540E\u811A / 4\u952E\u5C3E\u5DF4\uFF09", L"Hind Foot + Tail (3-Key / 4-Key)"));
     SendMessageW(limbCb, CB_ADDSTRING, 0, (LPARAM)tr(L"\u7528\u7B2C\u4E09\u53EA\u811A\u6253\u5B57\uFF08\u4EC5\u540E\u811A\uFF09", L"3rd Hind Foot Only"));
     SendMessageW(limbCb, CB_ADDSTRING, 0, (LPARAM)tr(L"\u7528\u5C3E\u5DF4\u6253\u5B57\uFF08\u4EC5\u5C3E\u5DF4\uFF09", L"Tail Typing Only"));
     SendMessageW(limbCb, CB_ADDSTRING, 0, (LPARAM)tr(L"\u53EA\u7528\u4E24\u53EA\u722A\u722A\u6253\u5B57", L"Two Front Paws Only"));
 
-    addCtrl(L"STATIC", tr(L"\u6570\u4F4D\u677F\u6A21\u5F0F", L"Tablet Mode"), SS_LEFT, 28, 426, 90, 20, 0);
-    HWND tabCb = addCtrl(L"COMBOBOX", L"", CBS_DROPDOWNLIST | WS_TABSTOP, 124, 422, 388, 120, ID_TABLET_COMBO);
+    addCtrl(L"STATIC", tr(L"\u6570\u4F4D\u677F\u6A21\u5F0F", L"Tablet Mode"), SS_LEFT, 28, 458, 90, 20, 0);
+    HWND tabCb = addCtrl(L"COMBOBOX", L"", CBS_DROPDOWNLIST | WS_TABSTOP, 124, 454, 388, 120, ID_TABLET_COMBO);
     SendMessageW(tabCb, CB_ADDSTRING, 0, (LPARAM)tr(L"\u81EA\u52A8\u68C0\u6D4B\uFF08\u8FDE\u63A5\u6570\u4F4D\u677F\u65F6\u81EA\u52A8\u5207\u6362\uFF09", L"Auto-Detect (Switch When Connected)"));
     SendMessageW(tabCb, CB_ADDSTRING, 0, (LPARAM)tr(L"\u59CB\u7EC8\u663E\u793A\u6570\u4F4D\u677F\u4E0E\u89E6\u63A7\u7B14", L"Always Show Tablet & Stylus"));
     SendMessageW(tabCb, CB_ADDSTRING, 0, (LPARAM)tr(L"\u59CB\u7EC8\u663E\u793A\u9F20\u6807", L"Always Show Mouse"));
 
     // Section 3: Window & System
-    addCtrl(L"BUTTON", tr(L"\u7A97\u53E3\u4E0E\u7CFB\u7EDF", L"Window & System"), BS_GROUPBOX, 14, 470, 512, 194, 0, true);
-    addCtrl(L"BUTTON", tr(L"\u7A97\u53E3\u7F6E\u9876\u663E\u793A", L"Always On Top"), BS_AUTOCHECKBOX | WS_TABSTOP, 28, 496, 236, 22, ID_CHK_TOPMOST);
-    addCtrl(L"BUTTON", tr(L"\u5168\u5C4F\u5E94\u7528\u65F6\u81EA\u52A8\u9690\u85CF", L"Auto-Hide in Fullscreen"), BS_AUTOCHECKBOX | WS_TABSTOP, 276, 496, 236, 22, ID_CHK_AUTOHIDE_FS);
-    addCtrl(L"BUTTON", tr(L"\u5B8C\u5168\u9F20\u6807\u7A7F\u900F (Alt \u4E34\u65F6\u89E3\u9501)", L"Full Click-Through (Hold Alt)"), BS_AUTOCHECKBOX | WS_TABSTOP, 28, 524, 236, 22, ID_CHK_CLICKTHROUGH);
-    addCtrl(L"BUTTON", tr(L"\u5F00\u673A\u81EA\u52A8\u542F\u52A8", L"Launch at Startup"), BS_AUTOCHECKBOX | WS_TABSTOP, 276, 524, 236, 22, ID_CHK_AUTOSTART);
-    addCtrl(L"BUTTON", tr(L"\u59CB\u7EC8\u4EE5\u7BA1\u7406\u5458\u8EAB\u4EFD\u8FD0\u884C", L"Always Run as Administrator"), BS_AUTOCHECKBOX | WS_TABSTOP, 28, 552, 236, 22, ID_CHK_RUN_ADMIN);
+    addCtrl(L"BUTTON", tr(L"\u7A97\u53E3\u4E0E\u7CFB\u7EDF", L"Window & System"), BS_GROUPBOX, 14, 502, 512, 224, 0, true);
+    addCtrl(L"BUTTON", tr(L"\u7A97\u53E3\u7F6E\u9876\u663E\u793A", L"Always On Top"), BS_AUTOCHECKBOX | WS_TABSTOP, 28, 528, 236, 22, ID_CHK_TOPMOST);
+    addCtrl(L"BUTTON", tr(L"\u5168\u5C4F\u5E94\u7528\u65F6\u81EA\u52A8\u9690\u85CF", L"Auto-Hide in Fullscreen"), BS_AUTOCHECKBOX | WS_TABSTOP, 276, 528, 236, 22, ID_CHK_AUTOHIDE_FS);
+    addCtrl(L"BUTTON", tr(L"\u5B8C\u5168\u9F20\u6807\u7A7F\u900F (Alt \u4E34\u65F6\u89E3\u9501)", L"Full Click-Through (Hold Alt)"), BS_AUTOCHECKBOX | WS_TABSTOP, 28, 556, 236, 22, ID_CHK_CLICKTHROUGH);
+    addCtrl(L"BUTTON", tr(L"\u5F00\u673A\u81EA\u52A8\u542F\u52A8", L"Launch at Startup"), BS_AUTOCHECKBOX | WS_TABSTOP, 276, 556, 236, 22, ID_CHK_AUTOSTART);
+    addCtrl(L"BUTTON", tr(L"\u59CB\u7EC8\u4EE5\u7BA1\u7406\u5458\u8EAB\u4EFD\u8FD0\u884C", L"Always Run as Administrator"), BS_AUTOCHECKBOX | WS_TABSTOP, 28, 584, 236, 22, ID_CHK_RUN_ADMIN);
     addCtrl(L"BUTTON", app.isElevated ? tr(L"\u2713 \u5DF2\u7BA1\u7406\u5458\u8FD0\u884C", L"\u2713 Running as Admin")
                                       : tr(L"\u7BA1\u7406\u5458\u8EAB\u4EFD\u91CD\u542F", L"Restart as Admin"),
-            BS_PUSHBUTTON | WS_TABSTOP, 276, 550, 148, 24, ID_BTN_RELAUNCH_ADMIN);
+            BS_PUSHBUTTON | WS_TABSTOP, 276, 582, 148, 24, ID_BTN_RELAUNCH_ADMIN);
+    addCtrl(L"BUTTON", tr(L"\u542C\u6B4C\u81EA\u52A8\u6234\u8033\u673A\uFF08\u97F3\u4E50/\u5A92\u4F53\u64AD\u653E\u5668\uFF09", L"Auto Headphones on Music"), BS_AUTOCHECKBOX | WS_TABSTOP, 28, 612, 340, 22, ID_CHK_AUTO_HEADPHONES);
 
-    addCtrl(L"STATIC", tr(L"OBS \u76F4\u64AD", L"OBS Capture"), SS_LEFT, 28, 586, 78, 20, 0);
-    HWND obsCb = addCtrl(L"COMBOBOX", L"", CBS_DROPDOWNLIST | WS_TABSTOP, 110, 582, 210, 120, ID_OBS_COMBO);
+    addCtrl(L"STATIC", tr(L"OBS \u76F4\u64AD", L"OBS Capture"), SS_LEFT, 28, 646, 78, 20, 0);
+    HWND obsCb = addCtrl(L"COMBOBOX", L"", CBS_DROPDOWNLIST | WS_TABSTOP, 110, 642, 210, 120, ID_OBS_COMBO);
     SendMessageW(obsCb, CB_ADDSTRING, 0, (LPARAM)tr(L"\u5173\u95ED\uFF08\u6B63\u5E38\u60AC\u6D6E\uFF09", L"Off (Normal Overlay)"));
     SendMessageW(obsCb, CB_ADDSTRING, 0, (LPARAM)tr(L"OBS \u900F\u660E\u7A97\u53E3\uFF08\u9700 WGC \u91C7\u96C6\uFF09", L"OBS Transparent (Needs WGC)"));
     SendMessageW(obsCb, CB_ADDSTRING, 0, (LPARAM)tr(L"OBS \u7EFF\u5E55\uFF08\u901A\u7528\u517C\u5BB9\uFF0C\u63A8\u8350\u76F4\u64AD\u59EC\uFF09", L"OBS Green Screen (Universal)"));
-    addCtrl(L"BUTTON", tr(L"\u540E\u53F0\u6355\u83B7\uFF08\u9690\u85CF\u684C\u9762\uFF09", L"Hide on Desktop"), BS_AUTOCHECKBOX | WS_TABSTOP, 332, 584, 180, 22, ID_CHK_OBS_HIDE);
+    addCtrl(L"BUTTON", tr(L"\u540E\u53F0\u6355\u83B7\uFF08\u9690\u85CF\u684C\u9762\uFF09", L"Hide on Desktop"), BS_AUTOCHECKBOX | WS_TABSTOP, 332, 644, 180, 22, ID_CHK_OBS_HIDE);
 
-    addCtrl(L"STATIC", tr(L"\u754C\u9762\u8BED\u8A00", L"Language"), SS_LEFT, 28, 620, 78, 20, 0);
-    HWND langCb = addCtrl(L"COMBOBOX", L"", CBS_DROPDOWNLIST | WS_TABSTOP, 110, 616, 150, 90, ID_LANG_COMBO);
+    addCtrl(L"STATIC", tr(L"\u754C\u9762\u8BED\u8A00", L"Language"), SS_LEFT, 28, 680, 78, 20, 0);
+    HWND langCb = addCtrl(L"COMBOBOX", L"", CBS_DROPDOWNLIST | WS_TABSTOP, 110, 676, 150, 90, ID_LANG_COMBO);
     SendMessageW(langCb, CB_ADDSTRING, 0, (LPARAM)L"\u7B80\u4F53\u4E2D\u6587");
     SendMessageW(langCb, CB_ADDSTRING, 0, (LPARAM)L"English");
-    addCtrl(L"BUTTON", tr(L"\u76AE\u80A4\u76EE\u5F55", L"Skins Dir"), BS_PUSHBUTTON | WS_TABSTOP, 290, 616, 106, 24, ID_BTN_SKINS_DIR);
-    addCtrl(L"BUTTON", tr(L"\u952E\u76D8\u76EE\u5F55", L"Keyboards Dir"), BS_PUSHBUTTON | WS_TABSTOP, 406, 616, 106, 24, ID_BTN_KB_DIR);
+    addCtrl(L"BUTTON", tr(L"\u76AE\u80A4\u76EE\u5F55", L"Skins Dir"), BS_PUSHBUTTON | WS_TABSTOP, 290, 676, 106, 24, ID_BTN_SKINS_DIR);
+    addCtrl(L"BUTTON", tr(L"\u952E\u76D8\u76EE\u5F55", L"Keyboards Dir"), BS_PUSHBUTTON | WS_TABSTOP, 406, 676, 106, 24, ID_BTN_KB_DIR);
 
     settings_ui::rebuildCombosAndSync(app);
     ShowWindow(win, SW_SHOWNORMAL);
@@ -1995,10 +2409,6 @@ void showContextMenu(AppState& app, POINT screenPt) {
 
     // Essential quick actions
     AppendMenuW(menu, MF_STRING, CMD_TOGGLE_VISIBLE, app.isVisible ? tr(L"\u9690\u85CF\u684C\u5BA0", L"Hide Pet") : tr(L"\u663E\u793A\u684C\u5BA0", L"Show Pet"));
-    AppendMenuW(menu, MF_STRING | (app.settings.isEditMode ? MF_CHECKED : 0), CMD_TOGGLE_EDIT,
-        app.settings.isEditMode
-            ? tr(L"\u2713 \u5B8C\u6210\u8C03\u6574\u5927\u5C0F\u4E0E\u65B9\u5411", L"\u2713 Finish Resize & Direction")
-            : tr(L"\u8C03\u6574\u5927\u5C0F\u4E0E\u65B9\u5411 (\u53CC\u51FB\u5C0F\u732B)", L"Resize & Direction (Double-Click Cat)"));
 
     // Quick Cat Skin switcher
     HMENU coatMenu = CreatePopupMenu();
@@ -2014,7 +2424,20 @@ void showContextMenu(AppState& app, POINT screenPt) {
     if (listed) AppendMenuW(coatMenu, MF_SEPARATOR, 0, nullptr);
     for (size_t i = 0; i < listed; ++i) {
         const SkinSpec& s = app.skins.skins[i];
-        AppendMenuW(coatMenu, MF_STRING | (app.settings.customSkin == s.id ? MF_CHECKED : 0), CMD_SKIN_SELECT_BASE + (UINT)i, utf8ToWide(s.name).c_str());
+        AppendMenuW(coatMenu, MF_STRING | (app.settings.customSkin == s.id ? MF_CHECKED : 0),
+                    CMD_SKIN_SELECT_BASE + (UINT)i, utf8ToWide(app.skins.displayName(s)).c_str());
+    }
+    if (listed) {
+        AppendMenuW(coatMenu, MF_SEPARATOR, 0, nullptr);
+        HMENU renameMenu = CreatePopupMenu();
+        HMENU deleteMenu = CreatePopupMenu();
+        for (size_t i = 0; i < listed; ++i) {
+            std::wstring label = utf8ToWide(app.skins.displayName(app.skins.skins[i]));
+            AppendMenuW(renameMenu, MF_STRING, CMD_SKIN_RENAME_BASE + (UINT)i, (L"\u270F " + label).c_str());
+            AppendMenuW(deleteMenu, MF_STRING, CMD_SKIN_DELETE_BASE + (UINT)i, (L"\U0001F5D1 " + label).c_str());
+        }
+        AppendMenuW(coatMenu, MF_POPUP, (UINT_PTR)renameMenu, tr(L"\u270F \u91CD\u547D\u540D\u76AE\u80A4\u2026", L"\u270F Rename Skin..."));
+        AppendMenuW(coatMenu, MF_POPUP, (UINT_PTR)deleteMenu, tr(L"\U0001F5D1 \u5220\u9664\u5DF2\u5BFC\u5165\u76AE\u80A4\u2026", L"\U0001F5D1 Delete Imported Skin..."));
     }
     AppendMenuW(coatMenu, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(coatMenu, MF_STRING, CMD_IMPORT_SKIN, tr(L"\u5BFC\u5165\u76AE\u80A4 / \u6362\u88C5\u95F4\u2026", L"Import Skin / Wardrobe..."));
@@ -2025,6 +2448,13 @@ void showContextMenu(AppState& app, POINT screenPt) {
     AppendMenuW(menu, MF_STRING, CMD_OPEN_WORKSHOP,
         tr(L"\U0001F3A8 \u76AE\u80A4\u5DE5\u574A\uFF08\u5236\u4F5C\u76AE\u80A4\uFF09\u2026",
            L"\U0001F3A8 Skin Workshop (Create Skins)..."));
+
+    AppendMenuW(menu, MF_STRING, CMD_OPEN_WEBSITE,
+        tr(L"\U0001F310 \u8F6F\u4EF6\u5B98\u7F51 (kurocat.cc)",
+           L"\U0001F310 Website (kurocat.cc)"));
+
+    AppendMenuW(menu, MF_STRING | (app.settings.levelKeyboard ? MF_CHECKED : 0), CMD_TOGGLE_LEVEL_KEYBOARD,
+        tr(L"\u952E\u76D8\u6C34\u5E73\u6446\u653E", L"Level Keyboard"));
 
     // Unified Settings window
     AppendMenuW(menu, MF_STRING, CMD_OPEN_SETTINGS, tr(L"\u2699\uFE0F \u8BBE\u7F6E\u2026", L"\u2699\uFE0F Settings..."));
@@ -2043,9 +2473,25 @@ void showContextMenu(AppState& app, POINT screenPt) {
     AppendMenuW(menu, MF_STRING, CMD_QUIT, tr(L"\u9000\u51FA KuroCat", L"Quit KuroCat"));
 
     HWND menuOwner = app.menuOwnerHwnd ? app.menuOwnerHwnd : app.hwnd;
+    app.inContextMenu = true;
+    if (app.menuOwnerHwnd) {
+        SetWindowPos(menuOwner, HWND_TOPMOST, screenPt.x, screenPt.y, 1, 1, SWP_NOACTIVATE);
+        ShowWindow(menuOwner, SW_SHOWNA);
+    }
+    HWND fg = GetForegroundWindow();
+    DWORD curTid = GetCurrentThreadId();
+    DWORD fgTid = (fg && fg != menuOwner) ? GetWindowThreadProcessId(fg, nullptr) : 0;
+    bool attached = (fgTid && fgTid != curTid) ? (AttachThreadInput(curTid, fgTid, TRUE) != FALSE) : false;
+    AllowSetForegroundWindow(ASFW_ANY);
+    BringWindowToTop(menuOwner);
     SetForegroundWindow(menuOwner);
+    if (attached) AttachThreadInput(curTid, fgTid, FALSE);
     UINT cmd = TrackPopupMenu(menu, TPM_RETURNCMD | TPM_RIGHTBUTTON, screenPt.x, screenPt.y, 0, menuOwner, nullptr);
     PostMessageW(menuOwner, WM_NULL, 0, 0);
+    if (app.menuOwnerHwnd) {
+        ShowWindow(menuOwner, SW_HIDE);
+    }
+    app.inContextMenu = false;
     DestroyMenu(menu);
 
     switch (cmd) {
@@ -2106,6 +2552,12 @@ void showContextMenu(AppState& app, POINT screenPt) {
             app.settings.keyboardMarquee = !app.settings.keyboardMarquee;
             app.settings.saveToRegistry();
             break;
+        case CMD_TOGGLE_LEVEL_KEYBOARD:
+            app.settings.levelKeyboard = !app.settings.levelKeyboard;
+            KeyboardLayout::levelKeyboard() = app.settings.levelKeyboard;
+            app.settings.saveToRegistry();
+            settings_ui::rebuildCombosAndSync(app);
+            break;
         case CMD_TOGGLE_PET:
             app.settings.petInteraction = !app.settings.petInteraction;
             app.settings.saveToRegistry();
@@ -2160,6 +2612,9 @@ void showContextMenu(AppState& app, POINT screenPt) {
         case CMD_OPEN_WORKSHOP:
             ShellExecuteW(nullptr, L"open", L"https://chanke17.github.io/KuroCat-Workshop/", nullptr, nullptr, SW_SHOWNORMAL);
             break;
+        case CMD_OPEN_WEBSITE:
+            ShellExecuteW(nullptr, L"open", L"https://kurocat.cc", nullptr, nullptr, SW_SHOWNORMAL);
+            break;
         case CMD_OPEN_SKINS_DIR:
             SkinLibrary::ensureDir();
             ShellExecuteW(nullptr, L"open", SkinLibrary::dir().c_str(), nullptr, nullptr, SW_SHOWNORMAL);
@@ -2175,18 +2630,21 @@ void showContextMenu(AppState& app, POINT screenPt) {
             ShellExecuteW(nullptr, L"open", KeyboardSkinLibrary::directory().c_str(), nullptr, nullptr, SW_SHOWNORMAL);
             break;
         case CMD_COAT_BLACK:
+            app.settings.overrideSkinIris = false;
             app.settings.customSkin.clear();
             app.settings.coatTheme = CatCoatTheme::ClassicBlack;
             app.settings.eyeTheme = EyeColorTheme::NeonChartreuse;
             app.settings.saveToRegistry();
             break;
         case CMD_COAT_SIAMESE:
+            app.settings.overrideSkinIris = false;
             app.settings.customSkin.clear();
             app.settings.coatTheme = CatCoatTheme::Siamese;
             app.settings.eyeTheme = EyeColorTheme::SiameseBlue;
             app.settings.saveToRegistry();
             break;
         case CMD_COAT_TABBY:
+            app.settings.overrideSkinIris = false;
             app.settings.customSkin.clear();
             app.settings.coatTheme = CatCoatTheme::Tabby;
             app.settings.eyeTheme = EyeColorTheme::OliveGold;
@@ -2194,20 +2652,22 @@ void showContextMenu(AppState& app, POINT screenPt) {
             break;
         case CMD_COAT_SHORTHAIR:
         case CMD_COAT_ORANGE_WHITE:
+            app.settings.overrideSkinIris = false;
             app.settings.customSkin.clear();
             app.settings.coatTheme = cmd == CMD_COAT_SHORTHAIR ? CatCoatTheme::Shorthair : CatCoatTheme::OrangeWhite;
             app.settings.eyeTheme = cmd == CMD_COAT_SHORTHAIR ? EyeColorTheme::ReferenceHazel : EyeColorTheme::WarmAmber;
             app.settings.saveToRegistry();
             break;
         case CMD_COAT_DAZED:
+            app.settings.overrideSkinIris = false;
             app.settings.customSkin.clear();
             app.settings.coatTheme = CatCoatTheme::Dazed;
             app.settings.eyeTheme = EyeColorTheme::SoftAmber;
             app.settings.saveToRegistry();
             break;
-        case CMD_EYE_SOFT_AMBER: app.settings.eyeTheme = EyeColorTheme::SoftAmber; app.settings.saveToRegistry(); break;
-        case CMD_EYE_REFERENCE_HAZEL: app.settings.eyeTheme = EyeColorTheme::ReferenceHazel; app.settings.saveToRegistry(); break;
-        case CMD_EYE_OLIVE_GOLD: app.settings.eyeTheme = EyeColorTheme::OliveGold; app.settings.saveToRegistry(); break;
+        case CMD_EYE_SOFT_AMBER: app.settings.overrideSkinIris = true; app.settings.eyeTheme = EyeColorTheme::SoftAmber; app.settings.saveToRegistry(); break;
+        case CMD_EYE_REFERENCE_HAZEL: app.settings.overrideSkinIris = true; app.settings.eyeTheme = EyeColorTheme::ReferenceHazel; app.settings.saveToRegistry(); break;
+        case CMD_EYE_OLIVE_GOLD: app.settings.overrideSkinIris = true; app.settings.eyeTheme = EyeColorTheme::OliveGold; app.settings.saveToRegistry(); break;
         case CMD_KB_MILK:
             app.settings.customKeyboard.clear();
             app.settings.keyboardTheme = KeyboardTheme::ClassicMilk;
@@ -2223,10 +2683,10 @@ void showContextMenu(AppState& app, POINT screenPt) {
             app.settings.keyboardTheme = KeyboardTheme::RetroCream;
             app.settings.saveToRegistry();
             break;
-        case CMD_EYE_LIME:  app.settings.eyeTheme = EyeColorTheme::NeonChartreuse; app.settings.saveToRegistry(); break;
-        case CMD_EYE_BLUE:  app.settings.eyeTheme = EyeColorTheme::SiameseBlue; app.settings.saveToRegistry(); break;
-        case CMD_EYE_AMBER: app.settings.eyeTheme = EyeColorTheme::WarmAmber; app.settings.saveToRegistry(); break;
-        case CMD_EYE_CYAN:  app.settings.eyeTheme = EyeColorTheme::IceCyan; app.settings.saveToRegistry(); break;
+        case CMD_EYE_LIME:  app.settings.overrideSkinIris = true; app.settings.eyeTheme = EyeColorTheme::NeonChartreuse; app.settings.saveToRegistry(); break;
+        case CMD_EYE_BLUE:  app.settings.overrideSkinIris = true; app.settings.eyeTheme = EyeColorTheme::SiameseBlue; app.settings.saveToRegistry(); break;
+        case CMD_EYE_AMBER: app.settings.overrideSkinIris = true; app.settings.eyeTheme = EyeColorTheme::WarmAmber; app.settings.saveToRegistry(); break;
+        case CMD_EYE_CYAN:  app.settings.overrideSkinIris = true; app.settings.eyeTheme = EyeColorTheme::IceCyan; app.settings.saveToRegistry(); break;
         case CMD_SCALE_65:  app.settings.scale = 0.65f; applyWindowScaleAndPosition(app, true); break;
         case CMD_SCALE_85:  app.settings.scale = 0.85f; applyWindowScaleAndPosition(app, true); break;
         case CMD_SCALE_100: app.settings.scale = 1.00f; applyWindowScaleAndPosition(app, true); break;
@@ -2268,10 +2728,13 @@ void showContextMenu(AppState& app, POINT screenPt) {
             break;
         default:
             if (cmd >= CMD_SKIN_SELECT_BASE && cmd < CMD_SKIN_SELECT_BASE + CMD_SKIN_RANGE && cmd - CMD_SKIN_SELECT_BASE < app.skins.skins.size()) {
+                app.settings.overrideSkinIris = false;
                 app.settings.customSkin = app.skins.skins[cmd - CMD_SKIN_SELECT_BASE].id;
                 app.settings.saveToRegistry();
             } else if (cmd >= CMD_SKIN_DELETE_BASE && cmd < CMD_SKIN_DELETE_BASE + CMD_SKIN_RANGE && cmd - CMD_SKIN_DELETE_BASE < app.skins.skins.size()) {
                 confirmDeleteSkin(app, app.skins.skins[cmd - CMD_SKIN_DELETE_BASE].id);
+            } else if (cmd >= CMD_SKIN_RENAME_BASE && cmd < CMD_SKIN_RENAME_BASE + CMD_SKIN_RANGE && cmd - CMD_SKIN_RENAME_BASE < app.skins.skins.size()) {
+                promptRenameSkin(app, app.skins.skins[cmd - CMD_SKIN_RENAME_BASE].id);
             } else if (cmd >= CMD_KB_SELECT_BASE && cmd < CMD_KB_SELECT_BASE + CMD_SKIN_RANGE && cmd - CMD_KB_SELECT_BASE < app.kbLibrary.skins.size()) {
                 app.settings.customKeyboard = app.kbLibrary.skins[cmd - CMD_KB_SELECT_BASE].id;
                 app.settings.saveToRegistry();
@@ -2333,9 +2796,11 @@ void tickAndRender(AppState& app) {
     int h = std::max(1, (int)(wr.bottom - wr.top));
 
     const SkinSpec& curSkin = activeSkin(app);
+    bool isClassicBuiltIn = (curSkin.id == "builtin:0" || curSkin.id == "builtin:1" || curSkin.id == "builtin:2" || curSkin.id == "builtin:3");
     app.physics.step(dt, wr, app.input, app.settings,
                      curSkin.typingStyle == SkinTypingStyle::Douni,
-                     curSkin.renderStyle == SkinRenderStyle::Douni);
+                     curSkin.renderStyle == SkinRenderStyle::Douni,
+                     isClassicBuiltIn);
     if (!physicsLooksSane(app.physics)) {
         // A single non-finite value would otherwise make every later frame draw nothing (the cat
         // "vanishes" until restart). Rebuild the pose but keep the session statistics.
@@ -2366,6 +2831,10 @@ void tickAndRender(AppState& app) {
                         float d = std::hypot(cp.x - app.lastHoverCanvas.x, cp.y - app.lastHoverCanvas.y);
                         if (d > 1.2f && d < 80.0f) {
                             app.physics.registerPetStroke(cp, d, true, app.settings);
+                            if (app.physics.totalPetSessions != app.lastSavedPetSessions) {
+                                app.lastSavedPetSessions = app.physics.totalPetSessions;
+                                CatSettings::saveStatsToRegistry(app.statsDay, app.input.totalKeystrokesToday, app.physics.totalPetSessions);
+                            }
                         }
                     }
                     app.lastHoverCanvas = cp;
@@ -2377,26 +2846,36 @@ void tickAndRender(AppState& app) {
                 // In Green Screen mode (non-layered window), keep WS_EX_TRANSPARENT off unless fullClickThrough is active,
                 // so window capture tools never skip or misread the solid green-screen window.
                 bool altHeld = (GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
-                bool clickThrough = (app.settings.fullClickThrough && !altHeld)
-                                  || (app.settings.obsCaptureMode != 2 && zone == CatHitZone::None);
+                bool holdClickable = app.rButtonDown || app.pendingMenuAfterAlt;
+                bool clickThrough = !holdClickable && ((app.settings.fullClickThrough && !altHeld)
+                                  || (app.settings.obsCaptureMode != 2 && zone == CatHitZone::None));
                 setClickThrough(app.hwnd, clickThrough);
             }
         } else {
             app.hasLastHover = false;
             app.physics.updateTailHover(nullptr);
             bool altHeld = (GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
-            bool clickThrough = (app.settings.fullClickThrough && !altHeld) || (app.settings.obsCaptureMode != 2);
+            bool holdClickable = app.rButtonDown || app.pendingMenuAfterAlt;
+            bool clickThrough = !holdClickable && ((app.settings.fullClickThrough && !altHeld) || (app.settings.obsCaptureMode != 2));
             setClickThrough(app.hwnd, clickThrough);
         }
     }
 
-    if (app.pendingMenuAfterAlt && (GetAsyncKeyState(VK_MENU) & 0x8000) == 0) {
-        app.pendingMenuAfterAlt = false;
-        POINT pt = app.pendingMenuPt;
-        showContextMenu(app, pt);
+    if (app.pendingMenuAfterAlt) {
+        if ((GetAsyncKeyState(VK_MENU) & 0x8000) == 0) {
+            if (app.pendingMenuAltUpTime <= 0.0) {
+                app.pendingMenuAltUpTime = now;
+            }
+            if (now - app.pendingMenuAltUpTime >= 0.05) {
+                app.pendingMenuAfterAlt = false;
+                app.pendingMenuAltUpTime = 0.0;
+                POINT pt = app.pendingMenuPt;
+                showContextMenu(app, pt);
+            }
+        } else {
+            app.pendingMenuAltUpTime = 0.0;
+        }
     }
-
-    app.physics.updateDazedCallout(CatRenderer::isDazed(activeSkin(app)) && app.settings.showKeyBadges);
 
     // Render 32-bit Premultiplied ARGB frame directly into DIB and present via UpdateLayeredWindow
     app.ensureBuffer(w, h);
@@ -2406,7 +2885,15 @@ void tickAndRender(AppState& app) {
     Gdiplus::Graphics g(&bmp);
     g.Clear(app.settings.obsCaptureMode == 2 ? Gdiplus::Color(255, 0, 255, 0) : Gdiplus::Color(0, 0, 0, 0));
     g.ScaleTransform((float)w / CatPhysics::CanvasWidth, (float)h / CatPhysics::CanvasHeight);
-    CatRenderer::draw(g, app.physics, app.settings, activeSkin(app), activeKeyboardSkin(app));
+    const SkinSpec& renderSkin = activeSkin(app);
+    CatRenderer::draw(g, app.physics, app.settings, renderSkin, activeKeyboardSkin(app));
+    if (dazed_skin::matches(renderSkin) && app.settings.showKeyBadges && !app.settings.isEditMode) {
+        if (!app.dazedCallout) app.dazedCallout.emplace();
+        app.dazedCallout->update(app.physics);
+        CatRenderer::drawDazedCallout(g, app.physics, app.settings, renderSkin, *app.dazedCallout);
+    } else {
+        app.dazedCallout.reset();
+    }
 
     // Green-screen mode (#00FF00) disables WS_EX_LAYERED so BitBlt / PrintWindow / Bilibili Live / OBS
     // all capture the solid window directly without black-screen issues; transparent modes use UpdateLayeredWindow.
@@ -2694,11 +3181,30 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             }
             return 0;
 
+        case WM_MOUSEWHEEL:
+            if (app && hwnd == app->hwnd) {
+                bool altHeld = (GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
+                if (!app->settings.fullClickThrough || altHeld) {
+                    short wheelDelta = GET_WHEEL_DELTA_WPARAM(wParam);
+                    if (wheelDelta != 0) {
+                        float steps = (float)wheelDelta / (float)WHEEL_DELTA;
+                        float stepFactor = ((GET_KEYSTATE_WPARAM(wParam) & MK_CONTROL) != 0) ? 0.08f : 0.06f;
+                        float factor = 1.0f + std::clamp(steps * stepFactor, -0.25f, 0.25f);
+                        app->settings.scale = std::clamp(app->settings.scale * factor, 0.45f, 2.50f);
+                        applyWindowScaleAndPosition(*app, true, true);
+                        refreshSettingsWindow(*app);
+                    }
+                }
+                return 0;
+            }
+            break;
+
         case WM_RBUTTONDOWN:
             if (app && hwnd == app->hwnd) {
                 bool altHeld = (GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
                 if (!app->settings.fullClickThrough || altHeld) {
                     app->rButtonDown = true;
+                    SetCapture(hwnd);
                 }
             }
             return 0;
@@ -2706,18 +3212,24 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         case WM_RBUTTONUP:
             if (app && hwnd == app->hwnd && app->rButtonDown) {
                 app->rButtonDown = false;
+                if (GetCapture() == hwnd) ReleaseCapture();
                 POINT pt = {};
                 GetCursorPos(&pt);
                 if ((GetAsyncKeyState(VK_MENU) & 0x8000) != 0) {
-                    // Defer opening the popup menu until Alt is released; otherwise
-                    // Windows' TrackPopupMenu modal loop cancels the menu on WM_SYSKEYUP(VK_MENU).
+                    // Defer opening the popup menu until shortly after Alt is released so Windows'
+                    // WM_SYSKEYUP/SC_KEYMENU finishes cleanly before TrackPopupMenu enters its modal loop.
                     app->pendingMenuAfterAlt = true;
+                    app->pendingMenuAltUpTime = 0.0;
                     app->pendingMenuPt = pt;
                 } else {
                     showContextMenu(*app, pt);
                 }
             }
             return 0;
+
+        case WM_SYSCOMMAND:
+            if ((wParam & 0xFFF0) == SC_KEYMENU) return 0;
+            break;
 
         case WM_CANCELMODE:
         case WM_CAPTURECHANGED:
@@ -2899,7 +3411,7 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 void CALLBACK onForegroundChanged(HWINEVENTHOOK, DWORD, HWND, LONG, LONG, DWORD, DWORD) {
     // A game just came to the front: many make themselves topmost right after showing, so
     // re-assert our own topmost state shortly afterwards instead of staying buried ("vanished").
-    if (g_app) g_app->pendingTopmostTime = nowSeconds() + 0.4;
+    if (g_app && !g_app->inContextMenu) g_app->pendingTopmostTime = nowSeconds() + 0.4;
 }
 
 /// Asks the already-running KuroCat to exit and waits for it. Builds <= 1.3.2 do not know
@@ -3048,6 +3560,10 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int) {
     AppState app;
     g_app = &app;
     app.settings.loadFromRegistry();
+    SkinLibrary::customDir() = utf8ToWide(app.settings.customSkinsDir);
+    KeyboardLayout::levelKeyboard() = app.settings.levelKeyboard;
+    CatSettings::loadStatsFromRegistry(app.statsDay, app.input.totalKeystrokesToday, app.physics.totalPetSessions);
+    app.lastSavedPetSessions = app.physics.totalPetSessions;
     app.skins.reload();
     app.kbLibrary.reload();
     app.isElevated = isCurrentProcessElevated();
@@ -3057,7 +3573,8 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int) {
     if (app.settings.runAsAdmin && !app.isElevated && !noElevate) {
         if (hMutex) { CloseHandle(hMutex); hMutex = nullptr; }
         if (relaunchSelfElevated(L"--takeover --no-elevate")) {
-            g_app = nullptr;
+            CatSettings::saveStatsToRegistry(app.statsDay, app.input.totalKeystrokesToday, app.physics.totalPetSessions);
+    g_app = nullptr;
             return 0;
         }
         hMutex = CreateMutexW(nullptr, FALSE, kMutexName);
@@ -3075,6 +3592,14 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int) {
     }
 
     app.input.onKeyDown = [&](PhysicalKey k) {
+        std::string today = CatSettings::todayDateString();
+        if (today != app.statsDay) {
+            app.statsDay = today;
+            app.input.totalKeystrokesToday = 1;
+            CatSettings::saveStatsToRegistry(app.statsDay, app.input.totalKeystrokesToday, app.physics.totalPetSessions);
+        } else if (app.input.totalKeystrokesToday % 10 == 0) {
+            CatSettings::saveStatsToRegistry(app.statsDay, app.input.totalKeystrokesToday, app.physics.totalPetSessions);
+        }
         app.physics.triggerKeyDown(k, app.settings, activeSkin(app).typingStyle == SkinTypingStyle::Douni, &app.input.activeKeys);
     };
     app.input.onMouseClick = [&](int btn, bool down) {
@@ -3099,14 +3624,15 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int) {
     RegisterClassExW(&trayWc);
 
     app.menuOwnerHwnd = CreateWindowExW(
-        WS_EX_TOOLWINDOW,
+        WS_EX_TOOLWINDOW | WS_EX_LAYERED,
         trayWc.lpszClassName,
         L"KuroCatTray",
         WS_POPUP,
-        0, 0, 0, 0,
+        0, 0, 1, 1,
         nullptr, nullptr, hInst, nullptr
     );
     if (app.menuOwnerHwnd) {
+        SetLayeredWindowAttributes(app.menuOwnerHwnd, 0, 0, LWA_ALPHA);
         SetPropW(app.menuOwnerHwnd, VERSION_PROP, (HANDLE)(INT_PTR)myVersion);
         // When elevated, UIPI would drop messages from the (non-elevated) taskbar and from a
         // re-launched KuroCat. Explicitly allow the few messages we rely on.
@@ -3202,6 +3728,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int) {
         housekeeping(app);
     }
 
+    CatSettings::saveStatsToRegistry(app.statsDay, app.input.totalKeystrokesToday, app.physics.totalPetSessions);
     g_app = nullptr;
     Gdiplus::GdiplusShutdown(gdipToken);
     if (hMutex) CloseHandle(hMutex);

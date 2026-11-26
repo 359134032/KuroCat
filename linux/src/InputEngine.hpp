@@ -1,5 +1,6 @@
 #pragma once
 #include <unordered_set>
+#include <unordered_map>
 #include <vector>
 #include <deque>
 #include <mutex>
@@ -86,6 +87,10 @@ public:
         float relDx = 0.0f, relDy = 0.0f;
         bool hasXCursor = false;
         float xCursorX = 0.0f, xCursorY = 0.0f;
+        bool evHwOk = false, xiHwOk = false;
+        std::unordered_set<PhysicalKey> evHw, xiHw;
+        int evMouseMask = 0, xiMouseMask = 0;
+        double evStamp = -10.0, xiStamp = -10.0;
         {
             std::lock_guard<std::mutex> lk(mu_);
             batch.swap(queue_);
@@ -94,15 +99,25 @@ public:
             hasXCursor = hasXCursor_;
             xCursorX = xCursorX_;
             xCursorY = xCursorY_;
+            evHwOk = hasEvdevHwSnapshot_;
+            xiHwOk = hasXi2HwSnapshot_;
+            evHw = evdevHwKeys_;
+            xiHw = xi2HwKeys_;
+            evMouseMask = evdevHwMouseMask_;
+            xiMouseMask = xi2HwMouseMask_;
+            evStamp = evdevHwStamp_;
+            xiStamp = xi2HwStamp_;
         }
 
+        double now = nowSeconds();
         for (const auto& e : batch) {
             if (e.isResetKeys) {
-                if (!activeKeys.empty() && (nowSeconds() - lastKeyActivityTime > 0.30)) {
+                if (!activeKeys.empty() && (now - lastKeyActivityTime > 0.30)) {
                     auto prev = activeKeys;
                     evdevKeys_.clear();
                     xi2Keys_.clear();
                     activeKeys.clear();
+                    keyDownTime_.clear();
                     pressedOrder.clear();
                     for (PhysicalKey k : prev) {
                         if (onKeyUp) onKeyUp(k);
@@ -112,6 +127,41 @@ public:
                 updateMouseButton(e.mouseButton, e.isDown);
             } else {
                 setKeyState(e.key, e.isDown, e.fromEvdev);
+            }
+        }
+
+        if (!activeKeys.empty()) {
+            bool checkEvdev = isEvdevActive && evHwOk && (now - evStamp < 1.2);
+            bool checkXi2 = !checkEvdev && isXI2Active && xiHwOk && (now - xiStamp < 1.2);
+            std::vector<PhysicalKey> stale;
+            for (PhysicalKey k : activeKeys) {
+                auto it = keyDownTime_.find(k);
+                double held = (it != keyDownTime_.end()) ? (now - it->second) : 0.5;
+                if (k == PhysicalKey::CapsLock && held > 0.45) {
+                    stale.push_back(k);
+                    continue;
+                }
+                if (held > 0.18) {
+                    if (checkEvdev && evHw.count(k) == 0) stale.push_back(k);
+                    else if (checkXi2 && xiHw.count(k) == 0) stale.push_back(k);
+                    else if (!checkEvdev && !checkXi2 && held > 6.0) stale.push_back(k);
+                }
+            }
+            for (PhysicalKey k : stale) forceReleaseKey(k);
+        }
+
+        bool checkEvMouse = isEvdevActive && evHwOk && (now - evStamp < 1.2);
+        bool checkXiMouse = !checkEvMouse && isXI2Active && xiHwOk && (now - xiStamp < 1.2);
+        if (checkEvMouse || checkXiMouse) {
+            int hwMask = checkEvMouse ? evMouseMask : xiMouseMask;
+            if (leftMouseDown && leftBtnDownTime_ > 0.0 && (now - leftBtnDownTime_) > 0.18 && !(hwMask & 1)) {
+                updateMouseButton(0, false);
+            }
+            if (rightMouseDown && rightBtnDownTime_ > 0.0 && (now - rightBtnDownTime_) > 0.18 && !(hwMask & 2)) {
+                updateMouseButton(1, false);
+            }
+            if (otherMouseDown && otherBtnDownTime_ > 0.0 && (now - otherBtnDownTime_) > 0.18 && !(hwMask & 4)) {
+                updateMouseButton(2, false);
             }
         }
 
@@ -145,7 +195,7 @@ public:
             mouseVelocity.y *= 0.82f;
         }
 
-        double now = nowSeconds();
+        now = nowSeconds();
         if (now - lastTabletScanTime_ > 2.5) {
             refreshTabletPresence(now);
         }
@@ -289,6 +339,18 @@ private:
 
     std::unordered_set<PhysicalKey> evdevKeys_;
     std::unordered_set<PhysicalKey> xi2Keys_;
+    std::unordered_map<PhysicalKey, double> keyDownTime_;
+    double leftBtnDownTime_ = -1.0;
+    double rightBtnDownTime_ = -1.0;
+    double otherBtnDownTime_ = -1.0;
+    std::unordered_set<PhysicalKey> evdevHwKeys_;
+    std::unordered_set<PhysicalKey> xi2HwKeys_;
+    int evdevHwMouseMask_ = 0;
+    int xi2HwMouseMask_ = 0;
+    double evdevHwStamp_ = -10.0;
+    double xi2HwStamp_ = -10.0;
+    bool hasEvdevHwSnapshot_ = false;
+    bool hasXi2HwSnapshot_ = false;
     std::deque<double> recentKeyTimes_;
 
     void pushKey(PhysicalKey k, bool isDown, bool fromEvdev) {
@@ -325,14 +387,25 @@ private:
             pressedOrder.erase(std::remove(pressedOrder.begin(), pressedOrder.end(), key), pressedOrder.end());
             pressedOrder.push_back(key);
             double now = nowSeconds();
+            keyDownTime_[key] = now;
             lastKeyActivityTime = now;
             recentKeyTimes_.push_back(now);
             totalKeystrokesToday++;
             if (onKeyDown) onKeyDown(key);
         } else if (wasActive && !isNowActive) {
+            keyDownTime_.erase(key);
             pressedOrder.erase(std::remove(pressedOrder.begin(), pressedOrder.end(), key), pressedOrder.end());
             if (onKeyUp) onKeyUp(key);
         }
+    }
+
+    void forceReleaseKey(PhysicalKey key) {
+        evdevKeys_.erase(key);
+        xi2Keys_.erase(key);
+        activeKeys.erase(key);
+        keyDownTime_.erase(key);
+        pressedOrder.erase(std::remove(pressedOrder.begin(), pressedOrder.end(), key), pressedOrder.end());
+        if (onKeyUp) onKeyUp(key);
     }
 
     void updateMouseButton(int button, bool isDown) {
@@ -343,6 +416,9 @@ private:
 
         if (prev != isDown) {
             double now = nowSeconds();
+            if (button == 0) leftBtnDownTime_ = isDown ? now : -1.0;
+            else if (button == 1) rightBtnDownTime_ = isDown ? now : -1.0;
+            else otherBtnDownTime_ = isDown ? now : -1.0;
             lastMouseMoveTime = now;
             if (isDown) lastMouseClickTime = now;
             if (onMouseClick) onMouseClick(button, isDown);
@@ -396,7 +472,7 @@ private:
             int ret = poll(&pfd, 1, pointerQueryPending ? 16 : 100);
 
             double nowT = nowSeconds();
-            if ((pointerQueryPending && nowT - lastPointerQuery >= 0.016) || nowT - lastPointerQuery > 0.5) {
+            if ((pointerQueryPending && nowT - lastPointerQuery >= 0.016) || nowT - lastPointerQuery > 0.18) {
                 Window rRet, cRet;
                 int rx = 0, ry = 0, wx = 0, wy = 0;
                 unsigned int maskRet = 0;
@@ -405,13 +481,27 @@ private:
                     hasXCursor_ = true;
                     xCursorX_ = (float)rx;
                     xCursorY_ = (float)ry;
+                    xi2HwMouseMask_ = ((maskRet & Button1Mask) ? 1 : 0)
+                                    | ((maskRet & Button3Mask) ? 2 : 0)
+                                    | ((maskRet & Button2Mask) ? 4 : 0);
                 }
-                if (nowT - lastPointerQuery > 0.35) {
+                if (nowT - lastPointerQuery > 0.18) {
                     char keys[32] = {};
                     XQueryKeymap(dpy, keys);
+                    std::unordered_set<PhysicalKey> hw;
                     bool anyHeld = false;
-                    for (int i = 0; i < 32; ++i) {
-                        if (keys[i] != 0) { anyHeld = true; break; }
+                    for (int kc = 8; kc < 256; ++kc) {
+                        if (keys[kc >> 3] & (1 << (kc & 7))) {
+                            anyHeld = true;
+                            PhysicalKey pk = mapLinuxEvdevKey((uint16_t)(kc - 8));
+                            if (pk != PhysicalKey::None) hw.insert(pk);
+                        }
+                    }
+                    {
+                        std::lock_guard<std::mutex> lk(mu_);
+                        xi2HwKeys_.swap(hw);
+                        xi2HwStamp_ = nowT;
+                        hasXi2HwSnapshot_ = true;
                     }
                     if (!anyHeld) pushResetKeys();
                 }
@@ -491,8 +581,44 @@ private:
         std::vector<struct pollfd> pfds(fds.size());
         for (size_t i = 0; i < fds.size(); ++i) pfds[i] = { fds[i], POLLIN, 0 };
 
+        double lastEvdevSync = -10.0;
         while (running_) {
             int ret = poll(pfds.data(), pfds.size(), 25);
+            double nowT = nowSeconds();
+            if (nowT - lastEvdevSync > 0.18) {
+                lastEvdevSync = nowT;
+                std::unordered_set<PhysicalKey> hw;
+                int mMask = 0;
+                constexpr size_t keyBytes = (KEY_MAX / 8) + 1;
+                uint8_t keyBits[keyBytes];
+                for (int fd : fds) {
+                    std::memset(keyBits, 0, sizeof(keyBits));
+                    if (ioctl(fd, EVIOCGKEY(sizeof(keyBits)), keyBits) < 0) continue;
+                    auto isSet = [&](unsigned code) -> bool {
+                        return code < KEY_MAX && (keyBits[code >> 3] & (1u << (code & 7))) != 0;
+                    };
+                    if (isSet(BTN_LEFT)) mMask |= 1;
+                    if (isSet(BTN_RIGHT)) mMask |= 2;
+                    if (isSet(BTN_MIDDLE)) mMask |= 4;
+                    for (size_t b = 0; b < keyBytes; ++b) {
+                        uint8_t byteVal = keyBits[b];
+                        if (!byteVal) continue;
+                        for (int bit = 0; bit < 8; ++bit) {
+                            if (!(byteVal & (1u << bit))) continue;
+                            uint16_t code = (uint16_t)(b * 8 + (size_t)bit);
+                            PhysicalKey pk = mapLinuxEvdevKey(code);
+                            if (pk != PhysicalKey::None) hw.insert(pk);
+                        }
+                    }
+                }
+                {
+                    std::lock_guard<std::mutex> lk(mu_);
+                    evdevHwKeys_.swap(hw);
+                    evdevHwMouseMask_ = mMask;
+                    evdevHwStamp_ = nowT;
+                    hasEvdevHwSnapshot_ = true;
+                }
+            }
             if (ret <= 0) continue;
 
             for (size_t i = 0; i < pfds.size(); ++i) {

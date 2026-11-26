@@ -3,24 +3,32 @@ import AppKit
 import UniformTypeIdentifiers
 
 private struct RenderedPose {
-    struct Appearance: Equatable {
+    struct ForegroundAppearance: Equatable {
         let coat: CatCoatTheme
         let skinId: String
-        let keyboard: KeyboardTheme
-        let keyboardSkinId: String
         let eyes: EyeColorTheme
-        let showsLegends: Bool
+        let tabletKeyboard: KeyboardTheme?
         let size: CGSize
         let flipped: Bool
         let rotationDeg: CGFloat
         let whiteOutline: Bool
-        let captureMode: Int
-        let showEditControls: Bool
-        let englishLabels: Bool
+        let overrideSkinIris: Bool
         let tabletActive: Bool
     }
 
+    struct Appearance: Equatable {
+        let foreground: ForegroundAppearance
+        let keyboard: KeyboardTheme
+        let keyboardSkinId: String
+        let showsLegends: Bool
+        let levelKeyboard: Bool
+        let captureMode: Int
+        let showEditControls: Bool
+        let englishLabels: Bool
+    }
+
     let appearance: Appearance
+    let marqueeBucket: Int
     let hasEffects: Bool
     let head: CGPoint
     let tail: CGPoint
@@ -32,40 +40,94 @@ private struct RenderedPose {
     let headTilt: CGFloat
     let eyeGaze: CGPoint
     let mouseOffset: CGPoint
+    let mousePressLeft: CGFloat
+    let mousePressRight: CGFloat
+    let mousePressMiddle: CGFloat
     let pawOnMouse: Bool
+    let hindFoot: CGPoint
+    let hindFootActive: CGFloat
+    let yawnAmount: CGFloat
+    let earFold: CGFloat
+    let earTwitch: CGFloat
+    let pupilScale: CGFloat
+    let bodyTilt: CGFloat
+    let bodySquash: CGFloat
+    let lieIntensity: CGFloat
+    let anger: CGFloat
+    let dizzy: CGFloat
+    let petIntensity: CGFloat
     let douniLoaf: CGFloat
     let douniMouse: CGFloat
     let douniLeftRaise: CGFloat
     let douniRightRaise: CGFloat
     let douniLeftTarget: CGPoint
     let douniRightTarget: CGPoint
+    let douniBreath: CGFloat
+    let douniAccentBucket: Int
     let hunt: CGFloat
     let tabletNib: CGPoint
     let tabletPress: CGFloat
+    let toastActive: Bool
+    let toastProgress: CGFloat
+    let showPermissionPill: Bool
+    let permissionPillText: String
 
-    init(physics: CatPhysics, settings: CatSettings, size: CGSize) {
+    init(physics: CatPhysics, settings: CatSettings, skin: SkinSpec, size: CGSize,
+         showPermissionPill: Bool, permissionPillText: String,
+         toastActive: Bool = false, toastProgress: CGFloat = 0) {
         let coat = settings.coatTheme
-        appearance = Appearance(coat: coat, skinId: settings.activeSkin.id,
-                                keyboard: settings.keyboardTheme, keyboardSkinId: settings.activeKeyboardSkin.id,
-                                eyes: settings.eyeTheme,
-                                showsLegends: settings.showKeyLegends, size: size, flipped: settings.flipHorizontal,
-                                rotationDeg: settings.rotationDeg, whiteOutline: settings.whiteOutline,
-                                captureMode: settings.obsCaptureMode, showEditControls: settings.isEditMode,
-                                englishLabels: settings.isEnglish, tabletActive: physics.isTabletActive)
-        hasEffects = settings.keyboardMarquee || !physics.sparkles.isEmpty
+        let tabletActive = physics.isTabletActive
+        let kbTheme = settings.keyboardTheme
+        let fgAppearance = ForegroundAppearance(
+            coat: coat,
+            skinId: skin.id,
+            eyes: settings.eyeTheme,
+            tabletKeyboard: tabletActive ? kbTheme : nil,
+            size: size,
+            flipped: settings.flipHorizontal,
+            rotationDeg: settings.rotationDeg,
+            whiteOutline: settings.whiteOutline,
+            overrideSkinIris: settings.overrideSkinIris,
+            tabletActive: tabletActive
+        )
+        appearance = Appearance(
+            foreground: fgAppearance,
+            keyboard: kbTheme,
+            keyboardSkinId: settings.activeKeyboardSkin.id,
+            showsLegends: settings.showKeyLegends,
+            levelKeyboard: settings.levelKeyboard,
+            captureMode: settings.obsCaptureMode,
+            showEditControls: settings.isEditMode,
+            englishLabels: settings.isEnglish
+        )
+
+        let scruff = physics.scruffDrag.value
+        let loaf = physics.douniLoafBlend.value
+        let asleep = physics.sleepiness >= 0.95
+        let keyboardVisible = (skin.renderStyle == .douni) ? (loaf < 0.99 && scruff < 0.99) : (scruff * 2.6 < 0.99)
+        marqueeBucket = (settings.keyboardMarquee && keyboardVisible)
+            ? CatRenderer.marqueeBucket(phase: physics.marqueePhase, asleep: asleep)
+            : -1
+
+        let pet = max(physics.petHeadIntensity, physics.petBodyIntensity)
+        hasEffects = !physics.sparkles.isEmpty
             || !physics.floatingKeycaps.isEmpty || !physics.keyGlow.isEmpty
             || !physics.tabletTrail.isEmpty || physics.kbSparkTimer > 0.005
             || physics.angerIntensity.value > 0.02 || physics.dizzyIntensity.value > 0.02
+            || physics.scruffDizzyIntensity.value > 0.02
             || physics.huntIntensity.value > 0.02
-            || physics.scruffDrag.value > 0.02 || physics.isChangingLie
+            || scruff > 0.02 || physics.isChangingLie
             || abs(physics.scruffSwing.value) > 0.01 || abs(physics.scruffSwingY.value) > 0.01
             || abs(physics.scruffTailSwing.value) > 0.01
-            || (physics.douniLoafBlend.value > 0.005 && physics.douniLoafBlend.value < 0.995)
+            || (loaf > 0.005 && loaf < 0.995)
             || abs(physics.douniLoafBlend.velocity) > 0.02
             || abs(physics.douniLeftRaise.velocity) > 0.05 || abs(physics.douniRightRaise.velocity) > 0.05
             || abs(physics.douniMouseBlend.velocity) > 0.05
             || abs(physics.kbImpactY.value) > 0.01 || abs(physics.kbImpactTilt.value) > 0.01
-        head = CatRenderer.headPosition(physics, coat: coat)
+            || pet > 0.02
+            || toastActive
+
+        head = CatRenderer.headPosition(physics, skin: skin)
         let tailCurve = CatRenderer.tailCurve(physics)
         tail = tailCurve.tip
         tailBend = tailCurve.control2
@@ -76,50 +138,123 @@ private struct RenderedPose {
         headTilt = physics.headTilt.value
         eyeGaze = physics.eyeGaze.point
         mouseOffset = physics.mouseOffset.point
+        mousePressLeft = physics.mousePressLeft.value
+        mousePressRight = physics.mousePressRight.value
+        mousePressMiddle = physics.mousePressMiddle.value
         pawOnMouse = physics.leftPawOnMouse
-        douniLoaf = physics.douniLoafBlend.value
+        hindFoot = physics.hindFoot.point
+        hindFootActive = physics.hindFootActive.value
+        yawnAmount = physics.yawnAmount
+        earFold = physics.earFold.value
+        earTwitch = physics.earTwitch.value
+        pupilScale = physics.pupilScale.value
+        bodyTilt = physics.bodyTilt.value
+        bodySquash = physics.bodySquash.value
+        lieIntensity = physics.lieIntensity.value
+        anger = physics.angerIntensity.value
+        dizzy = max(physics.dizzyIntensity.value, physics.scruffDizzyIntensity.value)
+        petIntensity = pet
+        douniLoaf = loaf
         douniMouse = physics.douniMouseBlend.value
         douniLeftRaise = physics.douniLeftRaise.value
         douniRightRaise = physics.douniRightRaise.value
         douniLeftTarget = physics.douniLeftKeyTarget.point
         douniRightTarget = physics.douniRightKeyTarget.point
+        if skin.renderStyle == .douni && loaf > 0.85 {
+            douniBreath = sin(physics.time * (asleep ? 1.7 : 2.3))
+            douniAccentBucket = (asleep || pet > 0.05) ? Int((physics.time * (asleep ? 15.0 : 24.0)).rounded()) : 0
+        } else {
+            douniBreath = 0
+            douniAccentBucket = 0
+        }
         hunt = physics.huntIntensity.value
         tabletNib = physics.tabletNib.point
         tabletPress = physics.tabletPenPress.value
+        self.toastActive = toastActive
+        self.toastProgress = toastProgress
+        self.showPermissionPill = showPermissionPill
+        self.permissionPillText = showPermissionPill ? permissionPillText : ""
     }
 
-    func visiblyDiffers(from previous: RenderedPose) -> Bool {
-        if appearance != previous.appearance || hasEffects || previous.hasEffects
-            || pawOnMouse != previous.pawOnMouse { return true }
+    func foregroundDiffers(from previous: RenderedPose) -> Bool {
+        if appearance.foreground != previous.appearance.foreground || hasEffects || previous.hasEffects
+            || pawOnMouse != previous.pawOnMouse || douniAccentBucket != previous.douniAccentBucket {
+            return true
+        }
         func distance(_ a: CGPoint, _ b: CGPoint) -> CGFloat { hypot(a.x - b.x, a.y - b.y) }
         // Estimate how far visible features moved in canvas coordinates, then convert to screen points.
-        let movement = max(distance(head, previous.head), distance(tail, previous.tail),
+        let movement = max(distance(head, previous.head),
+                           distance(tail, previous.tail),
                            distance(tailBend, previous.tailBend),
-                           distance(leftPaw, previous.leftPaw), distance(rightPaw, previous.rightPaw),
-                           abs(eyeClosure - previous.eyeClosure) * 40, distance(headTurn, previous.headTurn) * 24,
-                           abs(headTilt - previous.headTilt) * 52, distance(eyeGaze, previous.eyeGaze) * 10,
+                           distance(leftPaw, previous.leftPaw),
+                           distance(rightPaw, previous.rightPaw),
+                           abs(eyeClosure - previous.eyeClosure) * 40,
+                           distance(headTurn, previous.headTurn) * 24,
+                           abs(headTilt - previous.headTilt) * 52,
+                           distance(eyeGaze, previous.eyeGaze) * 10,
                            distance(mouseOffset, previous.mouseOffset),
+                           distance(hindFoot, previous.hindFoot) * max(hindFootActive, previous.hindFootActive),
+                           abs(hindFootActive - previous.hindFootActive) * 30,
+                           abs(yawnAmount - previous.yawnAmount) * 25,
+                           abs(earFold - previous.earFold) * 25,
+                           abs(earTwitch - previous.earTwitch) * 18,
+                           abs(pupilScale - previous.pupilScale) * 20,
+                           abs(bodyTilt - previous.bodyTilt) * 45,
+                           abs(bodySquash - previous.bodySquash) * 40,
+                           abs(lieIntensity - previous.lieIntensity) * 60,
+                           abs(anger - previous.anger) * 20,
+                           abs(dizzy - previous.dizzy) * 25,
+                           abs(petIntensity - previous.petIntensity) * 15,
                            abs(douniLoaf - previous.douniLoaf) * 90,
                            abs(douniMouse - previous.douniMouse) * 50,
                            abs(douniLeftRaise - previous.douniLeftRaise) * 55,
                            abs(douniRightRaise - previous.douniRightRaise) * 55,
                            distance(douniLeftTarget, previous.douniLeftTarget) * 0.4,
                            distance(douniRightTarget, previous.douniRightTarget) * 0.4,
+                           abs(douniBreath - previous.douniBreath) * 15,
                            abs(hunt - previous.hunt) * 40,
                            distance(tabletNib, previous.tabletNib),
                            abs(tabletPress - previous.tabletPress) * 20)
-        let scale = max(appearance.size.width / CatPhysics.canvasSize.width,
-                        appearance.size.height / CatPhysics.canvasSize.height)
+        let scale = max(appearance.foreground.size.width / CatPhysics.canvasSize.width,
+                        appearance.foreground.size.height / CatPhysics.canvasSize.height)
         return movement * scale >= 0.65
+    }
+
+    func visiblyDiffers(from previous: RenderedPose) -> Bool {
+        if marqueeBucket != previous.marqueeBucket
+            || appearance != previous.appearance
+            || toastActive != previous.toastActive
+            || abs(toastProgress - previous.toastProgress) > 0.004
+            || showPermissionPill != previous.showPermissionPill
+            || permissionPillText != previous.permissionPillText {
+            return true
+        }
+        let scale = max(appearance.foreground.size.width / CatPhysics.canvasSize.width,
+                        appearance.foreground.size.height / CatPhysics.canvasSize.height)
+        let pressMovement = max(abs(mousePressLeft - previous.mousePressLeft),
+                                abs(mousePressRight - previous.mousePressRight),
+                                abs(mousePressMiddle - previous.mousePressMiddle)) * 20
+        if pressMovement * scale >= 0.65 {
+            return true
+        }
+        return foregroundDiffers(from: previous)
     }
 }
 
 final class CatCanvasView: NSView {
+    private static let fgColorSpace = CGColorSpaceCreateDeviceRGB()
+    private enum ActiveCursor { case arrow, openHand, pointingHand, crosshair, closedHand }
+
     let physics = CatPhysics()
     var onRequestPermission: (() -> Void)?
     var onRightClickMenu: ((NSEvent) -> Void)?
+    var onUserInteraction: (() -> Void)?
     /// A `.kurocat` dropped onto the cat is imported and worn right away.
     var onDropSkinFiles: (([URL]) -> Void)?
+
+    /// Extra transparent space reserved above the cat canvas, so the hourly
+    /// toast pill (60pt above the head) never gets clipped by the view bounds.
+    static let contentTopInset: CGFloat = 64
 
     private var lastHoverCanvasPt: CGPoint?
     private var isDragging = false
@@ -132,8 +267,21 @@ final class CatCanvasView: NSView {
     private var resizeStartFrame: CGRect = .zero
     private var dragStartScreenPt: CGPoint = .zero
     private var dragStartWindowOrigin: CGPoint = .zero
-    private var isShowingOpenHand = false
+    private var activeCursor: ActiveCursor = .arrow
+    private var lastHoverWasInside = false
     private var lastDrawnPose: RenderedPose?
+    private var cachedForegroundImage: CGImage?
+    private var cachedForegroundPose: RenderedPose?
+    private var cachedForegroundBackingScale: CGFloat = 0
+
+    // MARK: - Toast (drawn directly on the canvas, above the cat's head)
+    private var toastText: String? = nil
+    private var toastProgress: CGFloat = 0
+    private var toastPhase: Double = 0
+    private let toastFadeIn: Double = 0.4
+    private let toastHold: Double = 4.2
+    private let toastFadeOut: Double = 0.4
+    var toastActive: Bool { toastText != nil }
 
     var isDraggingOrResizing: Bool { isDragging || isRotating || activeResizeCorner >= 0 }
 
@@ -141,25 +289,106 @@ final class CatCanvasView: NSView {
     override var isOpaque: Bool { false }
     override var acceptsFirstResponder: Bool { false }
 
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+        layerContentsRedrawPolicy = .onSetNeedsDisplay
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        wantsLayer = true
+        layerContentsRedrawPolicy = .onSetNeedsDisplay
+    }
+
     override func draw(_ dirtyRect: NSRect) {
         guard let ctx = NSGraphicsContext.current?.cgContext else { return }
         ctx.clear(bounds)
 
+        let totalCanvasH = CatPhysics.canvasSize.height + CatCanvasView.contentTopInset
         let scaleX = bounds.width / CatPhysics.canvasSize.width
-        let scaleY = bounds.height / CatPhysics.canvasSize.height
+        let scaleY = bounds.height / totalCanvasH
         ctx.saveGState()
         ctx.scaleBy(x: scaleX, y: scaleY)
+        // Shift the cat down, leaving transparent headroom above for the toast
+        ctx.translateBy(x: 0, y: CatCanvasView.contentTopInset)
 
+        let settings = CatSettings.shared
+        let skin = settings.activeSkin
         let status = InputEngine.shared.status
-        CatRenderer.draw(in: ctx, physics: physics, showPermissionPill: status.needsAttention,
-                         permissionPillText: status.permissionPillText)
-        lastDrawnPose = RenderedPose(physics: physics, settings: CatSettings.shared, size: bounds.size)
+        let showPill = status.needsAttention
+        let pillText = status.permissionPillText
+        let currentPose = RenderedPose(physics: physics, settings: settings, skin: skin, size: bounds.size,
+                                       showPermissionPill: showPill, permissionPillText: pillText,
+                                       toastActive: toastActive, toastProgress: toastProgress)
+
+        if physics.sleepiness >= 0.95,
+           CatRenderer.canSplitLayers(physics: physics, skin: skin),
+           settings.keyboardMarquee,
+           !currentPose.hasEffects {
+            let backingScale = window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2.0
+            let needRebuild: Bool = {
+                guard cachedForegroundImage != nil,
+                      let fgPose = cachedForegroundPose,
+                      cachedForegroundBackingScale == backingScale else { return true }
+                return currentPose.foregroundDiffers(from: fgPose)
+            }()
+            if needRebuild {
+                cachedForegroundImage = renderForegroundBitmap(backingScale: backingScale)
+                cachedForegroundPose = currentPose
+                cachedForegroundBackingScale = backingScale
+            }
+            if let fgImage = cachedForegroundImage {
+                CatRenderer.drawBackdrop(in: ctx, physics: physics)
+                ctx.saveGState()
+                ctx.translateBy(x: 0, y: CatPhysics.canvasSize.height)
+                ctx.scaleBy(x: 1, y: -1)
+                ctx.draw(fgImage, in: CGRect(origin: .zero, size: CatPhysics.canvasSize))
+                ctx.restoreGState()
+                CatRenderer.drawOverlays(in: ctx, showPermissionPill: showPill, permissionPillText: pillText)
+                if toastActive, let text = toastText {
+                    drawToastPill(in: ctx, text: text, alpha: toastProgress)
+                }
+                lastDrawnPose = currentPose
+                ctx.restoreGState()
+                return
+            }
+        }
+
+        cachedForegroundImage = nil
+        cachedForegroundPose = nil
+        CatRenderer.draw(in: ctx, physics: physics, showPermissionPill: showPill,
+                         permissionPillText: pillText)
+        if toastActive, let text = toastText {
+            drawToastPill(in: ctx, text: text, alpha: toastProgress)
+        }
+        lastDrawnPose = currentPose
         ctx.restoreGState()
+    }
+
+    private func renderForegroundBitmap(backingScale: CGFloat) -> CGImage? {
+        let scale = bounds.width / CatPhysics.canvasSize.width
+        let pxW = max(1, Int((CatPhysics.canvasSize.width * scale * backingScale).rounded()))
+        let pxH = max(1, Int((CatPhysics.canvasSize.height * scale * backingScale).rounded()))
+        guard let offCtx = CGContext(data: nil, width: pxW, height: pxH,
+                                     bitsPerComponent: 8, bytesPerRow: 0,
+                                     space: Self.fgColorSpace,
+                                     bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
+        offCtx.translateBy(x: 0, y: CGFloat(pxH))
+        offCtx.scaleBy(x: CGFloat(pxW) / CatPhysics.canvasSize.width,
+                       y: -CGFloat(pxH) / CatPhysics.canvasSize.height)
+        CatRenderer.drawForeground(in: offCtx, physics: physics)
+        return offCtx.makeImage()
     }
 
     func poseNeedsDisplay() -> Bool {
         guard let previous = lastDrawnPose else { return true }
-        let current = RenderedPose(physics: physics, settings: CatSettings.shared, size: bounds.size)
+        let settings = CatSettings.shared
+        let status = InputEngine.shared.status
+        let current = RenderedPose(physics: physics, settings: settings, skin: settings.activeSkin, size: bounds.size,
+                                   showPermissionPill: status.needsAttention,
+                                   permissionPillText: status.permissionPillText,
+                                   toastActive: toastActive, toastProgress: toastProgress)
         return current.visiblyDiffers(from: previous)
     }
 
@@ -168,46 +397,51 @@ final class CatCanvasView: NSView {
         let frame = win.frame
         guard frame.contains(screenPt) else { return nil }
         let localX = (screenPt.x - frame.minX) / frame.width * CatPhysics.canvasSize.width
-        // Convert bottom-up screen Y to flipped top-down canvas Y
-        let localY = (frame.maxY - screenPt.y) / frame.height * CatPhysics.canvasSize.height
+        // Convert bottom-up screen Y to flipped top-down canvas Y (minus the top headroom)
+        let totalCanvasH = CatPhysics.canvasSize.height + CatCanvasView.contentTopInset
+        let localY = (frame.maxY - screenPt.y) / frame.height * totalCanvasH - CatCanvasView.contentTopInset
         return CGPoint(x: localX, y: localY)
     }
 
-    /// Called on every 60fps tick to handle smart click-through AND petting strokes.
+    /// Updates smart click-through, cursor shape, and head petting strokes.
     func updateHoverAndClickThrough() {
         guard let win = window else { return }
-        let screenPt = NSEvent.mouseLocation
         if isDraggingOrResizing {
-            win.ignoresMouseEvents = false
+            if win.ignoresMouseEvents {
+                win.ignoresMouseEvents = false
+            }
             return
         }
 
+        let screenPt = NSEvent.mouseLocation
         guard let pt = canvasPoint(fromScreenPoint: screenPt) else {
-            lastHoverCanvasPt = nil
-            physics.updateTailHover(canvasPoint: nil)
+            if lastHoverWasInside || lastHoverCanvasPt != nil {
+                lastHoverWasInside = false
+                lastHoverCanvasPt = nil
+                physics.updateTailHover(canvasPoint: nil)
+            }
             if !win.ignoresMouseEvents {
                 win.ignoresMouseEvents = true
             }
-            resetCursorIfNeeded()
+            setCursorIfNeeded(.arrow)
             return
         }
+        lastHoverWasInside = true
 
         if CatSettings.shared.isEditMode {
             let editHit = CatRenderer.hitTestEditOverlay(point: pt)
-            win.ignoresMouseEvents = (editHit < 0)
+            let shouldIgnore = (editHit < 0)
+            if win.ignoresMouseEvents != shouldIgnore {
+                win.ignoresMouseEvents = shouldIgnore
+            }
             if editHit == 20 {
-                NSCursor.pointingHand.set()
-                isShowingOpenHand = false
+                setCursorIfNeeded(.pointingHand)
             } else if editHit >= 0 && editHit <= 3 {
-                NSCursor.crosshair.set()
-                isShowingOpenHand = false
+                setCursorIfNeeded(.crosshair)
             } else if editHit == 12 {
-                if !isShowingOpenHand {
-                    NSCursor.openHand.set()
-                    isShowingOpenHand = true
-                }
+                setCursorIfNeeded(.openHand)
             } else {
-                resetCursorIfNeeded()
+                setCursorIfNeeded(.arrow)
             }
             return
         }
@@ -224,6 +458,7 @@ final class CatCanvasView: NSView {
                 let delta = hypot(catPt.x - prev.x, catPt.y - prev.y)
                 if delta > 1.2 && delta < 80 {
                     physics.registerPetStroke(canvasPoint: catPt, delta: delta, isHead: true)
+                    onUserInteraction?()
                 }
             }
             lastHoverCanvasPt = catPt
@@ -235,35 +470,40 @@ final class CatCanvasView: NSView {
         let optionHeld = NSEvent.modifierFlags.contains(.option)
         if CatSettings.shared.fullClickThrough && !optionHeld {
             // Keep permission pill clickable only if permission isn't granted yet
-            win.ignoresMouseEvents = (zone != .permissionPill)
-            resetCursorIfNeeded()
+            let shouldIgnore = (zone != .permissionPill)
+            if win.ignoresMouseEvents != shouldIgnore {
+                win.ignoresMouseEvents = shouldIgnore
+            }
+            setCursorIfNeeded(.arrow)
         } else {
-            let shouldCapture = (zone != .none)
-            if win.ignoresMouseEvents == shouldCapture {
-                win.ignoresMouseEvents = !shouldCapture
+            let shouldIgnore = (zone == .none)
+            if win.ignoresMouseEvents != shouldIgnore {
+                win.ignoresMouseEvents = shouldIgnore
             }
             if zone == .head || zone == .body {
-                if !isShowingOpenHand {
-                    NSCursor.openHand.set()
-                    isShowingOpenHand = true
-                }
+                setCursorIfNeeded(.openHand)
             } else if zone == .permissionPill {
-                NSCursor.pointingHand.set()
-                isShowingOpenHand = false
+                setCursorIfNeeded(.pointingHand)
             } else {
-                resetCursorIfNeeded()
+                setCursorIfNeeded(.arrow)
             }
         }
     }
 
-    private func resetCursorIfNeeded() {
-        if isShowingOpenHand {
-            NSCursor.arrow.set()
-            isShowingOpenHand = false
+    private func setCursorIfNeeded(_ target: ActiveCursor) {
+        guard activeCursor != target else { return }
+        activeCursor = target
+        switch target {
+        case .arrow: NSCursor.arrow.set()
+        case .openHand: NSCursor.openHand.set()
+        case .pointingHand: NSCursor.pointingHand.set()
+        case .crosshair: NSCursor.crosshair.set()
+        case .closedHand: NSCursor.closedHand.set()
         }
     }
 
     override func mouseDown(with event: NSEvent) {
+        onUserInteraction?()
         guard let win = window else { return }
         let screenPt = NSEvent.mouseLocation
         let showPill = InputEngine.shared.status.needsAttention
@@ -283,7 +523,7 @@ final class CatCanvasView: NSView {
                     rotateStartDeg = CatSettings.shared.rotationDeg
                     let center = CGPoint(x: win.frame.midX, y: win.frame.midY)
                     rotateStartMouseAngle = atan2(-(screenPt.y - center.y), screenPt.x - center.x)
-                    NSCursor.closedHand.set()
+                    setCursorIfNeeded(.closedHand)
                     return
                 }
                 if hit >= 0 && hit <= 3 {
@@ -325,10 +565,11 @@ final class CatCanvasView: NSView {
         dragStartScreenPt = screenPt
         dragStartWindowOrigin = win.frame.origin
         physics.setDragging(true, dragDx: 0)
-        NSCursor.closedHand.set()
+        setCursorIfNeeded(.closedHand)
     }
 
     override func mouseDragged(with event: NSEvent) {
+        onUserInteraction?()
         guard let win = window else { return }
         let currentScreenPt = NSEvent.mouseLocation
         if isRotating {
@@ -350,13 +591,14 @@ final class CatCanvasView: NSView {
             return
         }
         if activeResizeCorner >= 0 {
+            let totalCanvasH = CatPhysics.canvasSize.height + CatCanvasView.contentTopInset
             let dx = abs(currentScreenPt.x - resizeAnchorScreenPt.x)
             let dy = abs(currentScreenPt.y - resizeAnchorScreenPt.y)
             let sx = dx / CatPhysics.canvasSize.width
-            let sy = dy / CatPhysics.canvasSize.height
+            let sy = dy / totalCanvasH
             let newScale = max(0.45, min(2.50, max(sx, sy)))
             let newW = CatPhysics.canvasSize.width * newScale
-            let newH = CatPhysics.canvasSize.height * newScale
+            let newH = totalCanvasH * newScale
             let originX = (activeResizeCorner == 0 || activeResizeCorner == 2)
                 ? (resizeAnchorScreenPt.x - newW)
                 : resizeAnchorScreenPt.x
@@ -365,6 +607,7 @@ final class CatCanvasView: NSView {
                 : resizeAnchorScreenPt.y
             CatSettings.shared.scale = newScale
             win.setFrame(CGRect(x: originX, y: originY, width: newW, height: newH), display: true)
+            needsDisplay = true
             return
         }
         guard isDragging else { return }
@@ -385,6 +628,7 @@ final class CatCanvasView: NSView {
     }
 
     override func mouseUp(with event: NSEvent) {
+        onUserInteraction?()
         guard let win = window else { return }
         if isRotating {
             isRotating = false
@@ -392,7 +636,7 @@ final class CatCanvasView: NSView {
                 CatSettings.shared.flipHorizontal.toggle()
             }
             UserDefaults.standard.synchronize()
-            NSCursor.pointingHand.set()
+            setCursorIfNeeded(.pointingHand)
             needsDisplay = true
             return
         }
@@ -406,7 +650,7 @@ final class CatCanvasView: NSView {
         guard isDragging else { return }
         isDragging = false
         physics.setDragging(false)
-        NSCursor.openHand.set()
+        setCursorIfNeeded(.openHand)
         // Save position immediately so restarts always preserve exact coordinates
         UserDefaults.standard.set(Double(win.frame.origin.x), forKey: "KuroCat.PosX")
         UserDefaults.standard.set(Double(win.frame.origin.y), forKey: "KuroCat.PosY")
@@ -414,14 +658,48 @@ final class CatCanvasView: NSView {
     }
 
     override func rightMouseDown(with event: NSEvent) {
+        onUserInteraction?()
         onRightClickMenu?(event)
+    }
+
+    override func scrollWheel(with event: NSEvent) {
+        let optionHeld = NSEvent.modifierFlags.contains(.option)
+        if CatSettings.shared.fullClickThrough && !optionHeld { return }
+        if event.momentumPhase != [] { return }
+        let raw = event.scrollingDeltaY
+        guard abs(raw) > 0.01 else { return }
+        let delta: CGFloat = event.hasPreciseScrollingDeltas
+            ? max(-0.18, min(0.18, raw * 0.0045))
+            : max(-0.20, min(0.20, raw * 0.06))
+        guard abs(delta) > 0.0005 else { return }
+        onUserInteraction?()
+        let newScale = max(0.45, min(2.50, CatSettings.shared.scale * (1.0 + delta)))
+        (window as? OverlayWindow)?.applyScale(newScale)
+    }
+
+    override func magnify(with event: NSEvent) {
+        let optionHeld = NSEvent.modifierFlags.contains(.option)
+        if CatSettings.shared.fullClickThrough && !optionHeld { return }
+        onUserInteraction?()
+        let factor = max(0.5, min(1.5, 1.0 + event.magnification))
+        let newScale = max(0.45, min(2.50, CatSettings.shared.scale * factor))
+        (window as? OverlayWindow)?.applyScale(newScale)
     }
 
     // MARK: Drag & drop of .kurocat skins onto the cat
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
+        wantsLayer = true
+        layerContentsRedrawPolicy = .onSetNeedsDisplay
         registerForDraggedTypes([.fileURL])
+    }
+
+    override func viewDidChangeBackingProperties() {
+        super.viewDidChangeBackingProperties()
+        cachedForegroundImage = nil
+        cachedForegroundPose = nil
+        needsDisplay = true
     }
 
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
@@ -439,6 +717,97 @@ final class CatCanvasView: NSView {
         DispatchQueue.main.async { [weak self] in self?.onDropSkinFiles?(urls) }
         return true
     }
+
+    // MARK: - Toast API (hourly announcement pill)
+
+    func showToast(text: String) {
+        toastText = text
+        toastPhase = 0
+        toastProgress = 0
+        onUserInteraction?()
+        needsDisplay = true
+    }
+
+    /// Called every frame from the render loop. Returns true while toast is alive.
+    @discardableResult
+    func tickToast(dt: CGFloat) -> Bool {
+        guard toastActive else { return false }
+        toastPhase += Double(dt)
+
+        if toastPhase < toastFadeIn {
+            toastProgress = CGFloat(toastPhase / toastFadeIn)
+        } else if toastPhase < toastFadeIn + toastHold {
+            toastProgress = 1.0
+        } else if toastPhase < toastFadeIn + toastHold + toastFadeOut {
+            let fadeOutElapsed = toastPhase - (toastFadeIn + toastHold)
+            toastProgress = CGFloat(1.0 - fadeOutElapsed / toastFadeOut)
+        } else {
+            toastText = nil
+            toastProgress = 0
+            toastPhase = 0
+            return false
+        }
+        return true
+    }
+
+    private func drawToastPill(in ctx: CGContext, text: String, alpha: CGFloat) {
+        guard alpha > 0.01 else { return }
+
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 18, weight: .semibold),
+            .foregroundColor: NSColor.white
+        ]
+        let attrStr = NSAttributedString(string: text, attributes: attrs)
+        let sz = attrStr.size()
+
+        let padX: CGFloat = 20
+        let padY: CGFloat = 13
+        let pillW = sz.width + padX * 2
+        let pillH = sz.height + padY * 2
+
+        // Follow the cat's actual head center so toast stays above the head
+        // during scruff-drag, lie-down, sleep, and other pose transitions.
+        let skin = CatSettings.shared.activeSkin
+        let headCenter = CatRenderer.headPosition(physics, skin: skin)
+        let headScale = skin.shape.headScale
+        let headTopY = headCenter.y - 38.0 * headScale  // top of cat face ellipse
+
+        let rect = CGRect(
+            x: headCenter.x - pillW / 2,
+            y: headTopY - pillH - 60,
+            width: pillW,
+            height: pillH
+        )
+        let cornerRadius = rect.height / 2
+
+        ctx.saveGState()
+        ctx.setAlpha(max(0, min(1, alpha)))
+        ctx.setShadow(offset: CGSize(width: 0, height: -2), blur: 8,
+                      color: NSColor.black.withAlphaComponent(0.35).cgColor)
+
+        let path = CGPath(roundedRect: rect, cornerWidth: cornerRadius,
+                          cornerHeight: cornerRadius, transform: nil)
+        ctx.setFillColor(NSColor(calibratedWhite: 0.08, alpha: 0.90).cgColor)
+        ctx.addPath(path)
+        ctx.fillPath()
+
+        ctx.setShadow(offset: CGSize.zero, blur: 0)
+        ctx.setStrokeColor(NSColor(calibratedWhite: 0.45, alpha: 0.55).cgColor)
+        ctx.setLineWidth(1.0)
+        let inner = rect.insetBy(dx: 0.5, dy: 0.5)
+        let innerPath = CGPath(roundedRect: inner, cornerWidth: cornerRadius - 0.5,
+                               cornerHeight: cornerRadius - 0.5, transform: nil)
+        ctx.addPath(innerPath)
+        ctx.strokePath()
+
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(cgContext: ctx, flipped: true)
+        let textY = rect.midY - sz.height / 2
+        attrStr.draw(at: CGPoint(x: rect.midX - sz.width / 2, y: textY))
+        NSGraphicsContext.restoreGraphicsState()
+
+        ctx.restoreGState()
+    }
 }
 
 final class OverlayWindow: NSPanel {
@@ -448,7 +817,7 @@ final class OverlayWindow: NSPanel {
         let scale = CatSettings.shared.scale
         let size = CGSize(
             width: CatPhysics.canvasSize.width * scale,
-            height: CatPhysics.canvasSize.height * scale
+            height: (CatPhysics.canvasSize.height + CatCanvasView.contentTopInset) * scale
         )
         let origin = OverlayWindow.initialOrigin(for: size)
 
@@ -516,7 +885,7 @@ final class OverlayWindow: NSPanel {
         let oldFrame = frame
         let newSize = CGSize(
             width: CatPhysics.canvasSize.width * newScale,
-            height: CatPhysics.canvasSize.height * newScale
+            height: (CatPhysics.canvasSize.height + CatCanvasView.contentTopInset) * newScale
         )
         // Anchor bottom-center so scaling feels grounded
         let newOrigin = CGPoint(
@@ -524,6 +893,7 @@ final class OverlayWindow: NSPanel {
             y: oldFrame.minY
         )
         setFrame(CGRect(origin: newOrigin, size: newSize), display: true)
+        catView.needsDisplay = true
         UserDefaults.standard.set(Double(newOrigin.x), forKey: "KuroCat.PosX")
         UserDefaults.standard.set(Double(newOrigin.y), forKey: "KuroCat.PosY")
     }
@@ -531,8 +901,18 @@ final class OverlayWindow: NSPanel {
     func resetPosition() {
         let origin = OverlayWindow.defaultOrigin(for: frame.size)
         setFrameOrigin(origin)
+        catView.needsDisplay = true
         UserDefaults.standard.set(Double(origin.x), forKey: "KuroCat.PosX")
         UserDefaults.standard.set(Double(origin.y), forKey: "KuroCat.PosY")
+    }
+
+    /// Frame the physics engine should treat as the cat's actual drawing area
+    /// (the window is taller than the cat canvas because of the toast headroom).
+    var physicsFrameInScreen: CGRect {
+        let scale = frame.width / CatPhysics.canvasSize.width
+        var f = frame
+        f.size.height -= CatCanvasView.contentTopInset * scale
+        return f
     }
 
     private static func initialOrigin(for size: CGSize) -> CGPoint {
@@ -711,6 +1091,7 @@ final class DressingRoomWindowController: NSWindowController {
     private let nameLabel = NSTextField(labelWithString: "")
     private let authorLabel = NSTextField(labelWithString: "")
     private let statusLabel = NSTextField(wrappingLabelWithString: "")
+    private let footerLabel = NSTextField(wrappingLabelWithString: "")
 
     init() {
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 444, height: 472),
@@ -763,11 +1144,11 @@ final class DressingRoomWindowController: NSWindowController {
         statusLabel.frame = NSRect(x: 22, y: 390, width: 400, height: 40)
         content.addSubview(statusLabel)
 
-        let footerPath = (SkinLibrary.directory.path as NSString).abbreviatingWithTildeInPath
-        let footer = label("皮肤独立保存在 \(footerPath)（软件更新会自动保留）  ·  右键小猫 → 猫咪皮肤 可切换或备份", .systemFont(ofSize: 10.5),
-                           DressingPalette.footer, NSRect(x: 22, y: 434, width: 400, height: 34), wraps: true)
-        footer.alignment = .center
-        content.addSubview(footer)
+        footerLabel.font = .systemFont(ofSize: 10.5)
+        footerLabel.textColor = DressingPalette.footer
+        footerLabel.frame = NSRect(x: 22, y: 434, width: 400, height: 34)
+        footerLabel.alignment = .center
+        content.addSubview(footerLabel)
 
         window.contentView = content
         window.center()
@@ -791,6 +1172,8 @@ final class DressingRoomWindowController: NSWindowController {
         let skin = CatSettings.shared.activeSkin
         nameLabel.stringValue = skin.name
         authorLabel.stringValue = skin.author.isEmpty ? "" : "作者 \(skin.author)"
+        let footerPath = (SkinLibrary.directory.path as NSString).abbreviatingWithTildeInPath
+        footerLabel.stringValue = "皮肤独立保存在 \(footerPath)（软件更新会自动保留）  ·  右键小猫 → 猫咪皮肤 可切换或备份"
         preview.needsDisplay = true
     }
 
@@ -839,6 +1222,9 @@ final class SettingsWindowController: NSWindowController {
     var onScaleChanged: ((CGFloat) -> Void)?
     var onResetPoseAndPosition: (() -> Void)?
     var onOpenDressingRoom: (() -> Void)?
+    var onSkinsDirectoryChanged: (() -> Void)?
+    var onRenameSkin: ((String) -> Void)?
+    var onDeleteSkin: ((String) -> Void)?
     var onImportKeyboardSkin: (() -> Void)?
     var onApplyWindowLevel: (() -> Void)?
     var onApplyOBSMode: (() -> Void)?
@@ -848,6 +1234,8 @@ final class SettingsWindowController: NSWindowController {
     var onLanguageChanged: (() -> Void)?
 
     private var skinPopup: NSPopUpButton!
+    private var skinsDirLabel: NSTextField!
+    private var resetSkinsDirBtn: NSButton!
     private var kbPopup: NSPopUpButton!
     private var eyePopup: NSPopUpButton!
     private var tabletPopup: NSPopUpButton!
@@ -863,11 +1251,14 @@ final class SettingsWindowController: NSWindowController {
     private var mouseBadgesSwitch: NSSwitch!
     private var legendsSwitch: NSSwitch!
     private var marqueeSwitch: NSSwitch!
+    private var levelKeyboardSwitch: NSSwitch!
     private var fullscreenOverlaySwitch: NSSwitch!
     private var clickThroughSwitch: NSSwitch!
     private var autoHideSwitch: NSSwitch!
+    private var autoHeadphonesSwitch: NSSwitch!
     private var obsHideSwitch: NSSwitch!
     private var autoStartSwitch: NSSwitch!
+    private var hourlySwitch: NSSwitch!
 
     private var rotSlider: NSSlider!
     private var rotValLabel: NSTextField!
@@ -972,17 +1363,18 @@ final class SettingsWindowController: NSWindowController {
 
         // MARK: Card 1 — Appearance & Orientation
         addSectionHeader(tr("外观与方向", "Appearance & Orientation"))
-        addCard(rows: 7) { card, rh in
-            // Row 0: Cat Skin + Dressing Room button
-            card.addSubview(makeLabel(tr("猫咪皮肤", "Cat Skin"), yPos: 4, width: 110))
-            skinPopup = NSPopUpButton(frame: NSRect(x: 130, y: 9, width: 222, height: 24), pullsDown: false)
+        addCard(rows: 8) { card, rh in
+            // Row 0: Cat Skin + Dressing Room + Rename/Delete buttons (when a custom skin is active)
+            let hasCustomActive = !s.customSkin.isEmpty && SkinLibrary.shared.skin(id: s.customSkin) != nil
+            card.addSubview(makeLabel(tr("猫咪皮肤", "Cat Skin"), yPos: 4, width: 100))
+            skinPopup = NSPopUpButton(frame: NSRect(x: 112, y: 9, width: hasCustomActive ? 148 : 240, height: 24), pullsDown: false)
             skinIds = []
             for coat in CatCoatTheme.allCases {
                 skinPopup.addItem(withTitle: s.isEnglish ? englishCoatName(coat) : coat.rawValue)
                 skinIds.append("coat:\(coat.rawValue)")
             }
             for sk in SkinLibrary.shared.skins {
-                skinPopup.addItem(withTitle: sk.name)
+                skinPopup.addItem(withTitle: SkinLibrary.shared.displayName(for: sk))
                 skinIds.append("custom:\(sk.id)")
             }
             if !s.customSkin.isEmpty, let idx = skinIds.firstIndex(of: "custom:\(s.customSkin)") {
@@ -994,17 +1386,71 @@ final class SettingsWindowController: NSWindowController {
             skinPopup.action = #selector(onSkinSelected)
             card.addSubview(skinPopup)
 
-            let dressBtn = NSButton(title: tr("换装间…", "Skins…"), target: self, action: #selector(onTapDressingRoom))
-            dressBtn.bezelStyle = .rounded
-            dressBtn.controlSize = .small
-            dressBtn.frame = NSRect(x: 358, y: 10, width: 84, height: 22)
-            card.addSubview(dressBtn)
+            if hasCustomActive {
+                let dressBtn = NSButton(title: tr("换装间…", "Skins…"), target: self, action: #selector(onTapDressingRoom))
+                dressBtn.bezelStyle = .rounded
+                dressBtn.controlSize = .small
+                dressBtn.frame = NSRect(x: 264, y: 10, width: 64, height: 22)
+                card.addSubview(dressBtn)
+
+                let renameBtn = NSButton(title: tr("✏️改名", "✏️"), target: self, action: #selector(onTapRenameSkin))
+                renameBtn.bezelStyle = .rounded
+                renameBtn.controlSize = .small
+                renameBtn.frame = NSRect(x: 332, y: 10, width: 52, height: 22)
+                card.addSubview(renameBtn)
+
+                let delBtn = NSButton(title: tr("🗑删除", "🗑Del"), target: self, action: #selector(onTapDeleteSkin))
+                delBtn.bezelStyle = .rounded
+                delBtn.controlSize = .small
+                delBtn.contentTintColor = .systemRed
+                if #available(macOS 11.0, *) { delBtn.hasDestructiveAction = true }
+                delBtn.frame = NSRect(x: 388, y: 10, width: 56, height: 22)
+                card.addSubview(delBtn)
+            } else {
+                let dressBtn = NSButton(title: tr("换装间…", "Skins…"), target: self, action: #selector(onTapDressingRoom))
+                dressBtn.bezelStyle = .rounded
+                dressBtn.controlSize = .small
+                dressBtn.frame = NSRect(x: 358, y: 10, width: 84, height: 22)
+                card.addSubview(dressBtn)
+            }
             addRowDivider(card, yPos: 4 + rh)
 
-            // Row 1: Keyboard Theme + Import button
+            // Row 1: Skins Folder path + Choose / Open / Reset
             let r1 = 4 + rh
-            card.addSubview(makeLabel(tr("键盘配色", "Keyboard Theme"), yPos: r1, width: 110))
-            kbPopup = NSPopUpButton(frame: NSRect(x: 130, y: r1 + 5, width: 222, height: 24), pullsDown: false)
+            card.addSubview(makeLabel(tr("皮肤目录", "Skins Dir"), yPos: r1, width: 66))
+            let dirDisplay = (SkinLibrary.directory.path as NSString).abbreviatingWithTildeInPath
+            skinsDirLabel = NSTextField(labelWithString: dirDisplay)
+            skinsDirLabel.font = .systemFont(ofSize: 11.5)
+            skinsDirLabel.textColor = .secondaryLabelColor
+            skinsDirLabel.lineBreakMode = .byTruncatingMiddle
+            skinsDirLabel.toolTip = SkinLibrary.directory.path
+            skinsDirLabel.frame = NSRect(x: 84, y: r1 + 10, width: 138, height: 17)
+            card.addSubview(skinsDirLabel)
+
+            let chooseDirBtn = NSButton(title: tr("选择文件夹…", "Choose…"), target: self, action: #selector(onTapChooseSkinsDir))
+            chooseDirBtn.bezelStyle = .rounded
+            chooseDirBtn.controlSize = .small
+            chooseDirBtn.frame = NSRect(x: 226, y: r1 + 7, width: 96, height: 22)
+            card.addSubview(chooseDirBtn)
+
+            let openDirBtn = NSButton(title: tr("打开", "Open"), target: self, action: #selector(onTapOpenSkinsDir))
+            openDirBtn.bezelStyle = .rounded
+            openDirBtn.controlSize = .small
+            openDirBtn.frame = NSRect(x: 326, y: r1 + 7, width: 46, height: 22)
+            card.addSubview(openDirBtn)
+
+            resetSkinsDirBtn = NSButton(title: tr("恢复默认", "Reset"), target: self, action: #selector(onTapResetSkinsDir))
+            resetSkinsDirBtn.bezelStyle = .rounded
+            resetSkinsDirBtn.controlSize = .small
+            resetSkinsDirBtn.isEnabled = SkinLibrary.isUsingCustomDirectory
+            resetSkinsDirBtn.frame = NSRect(x: 376, y: r1 + 7, width: 66, height: 22)
+            card.addSubview(resetSkinsDirBtn)
+            addRowDivider(card, yPos: r1 + rh)
+
+            // Row 2: Keyboard Theme + Import button
+            let r2 = 4 + rh * 2
+            card.addSubview(makeLabel(tr("键盘配色", "Keyboard Theme"), yPos: r2, width: 110))
+            kbPopup = NSPopUpButton(frame: NSRect(x: 130, y: r2 + 5, width: 222, height: 24), pullsDown: false)
             kbIds = []
             KeyboardSkinLibrary.shared.reload()
             for kb in KeyboardTheme.allCases {
@@ -1027,14 +1473,14 @@ final class SettingsWindowController: NSWindowController {
             let kbBtn = NSButton(title: tr("导入…", "Import…"), target: self, action: #selector(onTapImportKB))
             kbBtn.bezelStyle = .rounded
             kbBtn.controlSize = .small
-            kbBtn.frame = NSRect(x: 358, y: r1 + 6, width: 84, height: 22)
+            kbBtn.frame = NSRect(x: 358, y: r2 + 6, width: 84, height: 22)
             card.addSubview(kbBtn)
-            addRowDivider(card, yPos: r1 + rh)
+            addRowDivider(card, yPos: r2 + rh)
 
-            // Row 2: Eye Color
-            let r2 = 4 + rh * 2
-            card.addSubview(makeLabel(tr("瞳色切换", "Eye Color"), yPos: r2, width: 110))
-            eyePopup = NSPopUpButton(frame: NSRect(x: 130, y: r2 + 5, width: 312, height: 24), pullsDown: false)
+            // Row 3: Eye Color
+            let r3 = 4 + rh * 3
+            card.addSubview(makeLabel(tr("瞳色切换", "Eye Color"), yPos: r3, width: 110))
+            eyePopup = NSPopUpButton(frame: NSRect(x: 130, y: r3 + 5, width: 312, height: 24), pullsDown: false)
             for eye in EyeColorTheme.allCases {
                 eyePopup.addItem(withTitle: s.isEnglish ? englishEyeName(eye) : eye.rawValue)
             }
@@ -1042,63 +1488,63 @@ final class SettingsWindowController: NSWindowController {
             eyePopup.target = self
             eyePopup.action = #selector(onEyeSelected)
             card.addSubview(eyePopup)
-            addRowDivider(card, yPos: r2 + rh)
-
-            // Row 3: White Outline toggle
-            let r3 = 4 + rh * 3
-            card.addSubview(makeLabel(tr("小猫白色外描边（贴纸风）", "White Sticker Outline"), yPos: r3, width: 320))
-            whiteOutlineSwitch = makeSwitch(s.whiteOutline, action: #selector(onToggleWhiteOutline), yPos: r3)
-            card.addSubview(whiteOutlineSwitch)
             addRowDivider(card, yPos: r3 + rh)
 
-            // Row 4: Horizontal Flip toggle
+            // Row 4: White Outline toggle
             let r4 = 4 + rh * 4
-            card.addSubview(makeLabel(tr("水平镜像翻转（左右朝向）", "Flip Horizontal"), yPos: r4, width: 320))
-            flipSwitch = makeSwitch(s.flipHorizontal, action: #selector(onToggleFlip), yPos: r4)
-            card.addSubview(flipSwitch)
+            card.addSubview(makeLabel(tr("小猫白色外描边（贴纸风）", "White Sticker Outline"), yPos: r4, width: 320))
+            whiteOutlineSwitch = makeSwitch(s.whiteOutline, action: #selector(onToggleWhiteOutline), yPos: r4)
+            card.addSubview(whiteOutlineSwitch)
             addRowDivider(card, yPos: r4 + rh)
 
-            // Row 5: Rotation Angle slider + Reset 0°
+            // Row 5: Horizontal Flip toggle
             let r5 = 4 + rh * 5
-            card.addSubview(makeLabel(tr("旋转方向", "Rotation"), yPos: r5, width: 96))
+            card.addSubview(makeLabel(tr("水平镜像翻转（左右朝向）", "Flip Horizontal"), yPos: r5, width: 320))
+            flipSwitch = makeSwitch(s.flipHorizontal, action: #selector(onToggleFlip), yPos: r5)
+            card.addSubview(flipSwitch)
+            addRowDivider(card, yPos: r5 + rh)
+
+            // Row 6: Rotation Angle slider + Reset 0°
+            let r6 = 4 + rh * 6
+            card.addSubview(makeLabel(tr("旋转方向", "Rotation"), yPos: r6, width: 96))
             rotSlider = NSSlider(value: Double(s.rotationDeg), minValue: -180, maxValue: 180, target: self, action: #selector(onRotationChanged))
-            rotSlider.frame = NSRect(x: 112, y: r5 + 8, width: 204, height: 20)
+            rotSlider.frame = NSRect(x: 112, y: r6 + 8, width: 204, height: 20)
             card.addSubview(rotSlider)
             rotValLabel = NSTextField(labelWithString: "\(Int(s.rotationDeg.rounded()))°")
             rotValLabel.font = .monospacedDigitSystemFont(ofSize: 12, weight: .medium)
             rotValLabel.textColor = .secondaryLabelColor
             rotValLabel.alignment = .right
-            rotValLabel.frame = NSRect(x: 320, y: r5 + 9, width: 42, height: 18)
+            rotValLabel.frame = NSRect(x: 320, y: r6 + 9, width: 42, height: 18)
             card.addSubview(rotValLabel)
             let zeroBtn = NSButton(title: tr("回正", "0°"), target: self, action: #selector(onResetRotation))
             zeroBtn.bezelStyle = .rounded
             zeroBtn.controlSize = .small
-            zeroBtn.frame = NSRect(x: 368, y: r5 + 7, width: 74, height: 22)
+            zeroBtn.frame = NSRect(x: 368, y: r6 + 7, width: 74, height: 22)
             card.addSubview(zeroBtn)
-            addRowDivider(card, yPos: r5 + rh)
+            addRowDivider(card, yPos: r6 + rh)
 
-            // Row 6: Scale slider + Reset Pose & Position
-            let r6 = 4 + rh * 6
-            card.addSubview(makeLabel(tr("桌宠大小", "Scale"), yPos: r6, width: 96))
+            // Row 7: Scale slider + Reset Pose & Position
+            let r7 = 4 + rh * 7
+            card.addSubview(makeLabel(tr("桌宠大小", "Scale"), yPos: r7, width: 96))
             scaleSlider = NSSlider(value: Double(s.scale), minValue: 0.45, maxValue: 2.0, target: self, action: #selector(onScaleSliderChanged))
-            scaleSlider.frame = NSRect(x: 112, y: r6 + 8, width: 204, height: 20)
+            scaleSlider.frame = NSRect(x: 112, y: r7 + 8, width: 204, height: 20)
             card.addSubview(scaleSlider)
             scaleValLabel = NSTextField(labelWithString: "\(Int((s.scale * 100).rounded()))%")
             scaleValLabel.font = .monospacedDigitSystemFont(ofSize: 12, weight: .medium)
             scaleValLabel.textColor = .secondaryLabelColor
             scaleValLabel.alignment = .right
-            scaleValLabel.frame = NSRect(x: 320, y: r6 + 9, width: 42, height: 18)
+            scaleValLabel.frame = NSRect(x: 320, y: r7 + 9, width: 42, height: 18)
             card.addSubview(scaleValLabel)
             let resetAllBtn = NSButton(title: tr("重置位置", "Reset"), target: self, action: #selector(onTapResetPose))
             resetAllBtn.bezelStyle = .rounded
             resetAllBtn.controlSize = .small
-            resetAllBtn.frame = NSRect(x: 368, y: r6 + 7, width: 74, height: 22)
+            resetAllBtn.frame = NSRect(x: 368, y: r7 + 7, width: 74, height: 22)
             card.addSubview(resetAllBtn)
         }
 
         // MARK: Card 2 — Interaction & Effects
         addSectionHeader(tr("互动与特效", "Interaction & Effects"))
-        addCard(rows: 8) { card, rh in
+        addCard(rows: 9) { card, rh in
             // Row 0: Scruff-drag animation toggle
             card.addSubview(makeLabel(tr("拎起拖拽动画（拖动时切换拎起姿态）", "Scruff-Drag Lift Animation"), yPos: 4, width: 320))
             dragAnimSwitch = makeSwitch(s.enableDragAnimation, action: #selector(onToggleDragAnim), yPos: 4)
@@ -1159,10 +1605,17 @@ final class SettingsWindowController: NSWindowController {
             card.addSubview(marqueeSwitch)
             addRowDivider(card, yPos: r6 + rh)
 
-            // Row 7: Drawing Tablet & Stylus
+            // Row 7: Level keyboard (parallel to screen)
             let r7 = 4 + rh * 7
-            card.addSubview(makeLabel(tr("数位板与触控笔", "Tablet & Stylus"), yPos: r7, width: 130))
-            tabletPopup = NSPopUpButton(frame: NSRect(x: 150, y: r7 + 5, width: 292, height: 24), pullsDown: false)
+            card.addSubview(makeLabel(tr("键盘水平摆放（平行屏幕）", "Level Keyboard (Parallel to Screen)"), yPos: r7, width: 320))
+            levelKeyboardSwitch = makeSwitch(s.levelKeyboard, action: #selector(onToggleLevelKeyboard), yPos: r7)
+            card.addSubview(levelKeyboardSwitch)
+            addRowDivider(card, yPos: r7 + rh)
+
+            // Row 8: Drawing Tablet & Stylus
+            let r8 = 4 + rh * 8
+            card.addSubview(makeLabel(tr("数位板与触控笔", "Tablet & Stylus"), yPos: r8, width: 130))
+            tabletPopup = NSPopUpButton(frame: NSRect(x: 150, y: r8 + 5, width: 292, height: 24), pullsDown: false)
             tabletPopup.addItems(withTitles: [
                 tr("自动检测（连接数位板时切换）", "Auto-Detect When Connected"),
                 tr("始终显示数位板与触控笔", "Always Show Tablet & Stylus"),
@@ -1176,7 +1629,7 @@ final class SettingsWindowController: NSWindowController {
 
         // MARK: Card 3 — Window & System
         addSectionHeader(tr("窗口与系统", "Window & System"))
-        addCard(rows: 7) { card, rh in
+        addCard(rows: 9) { card, rh in
             // Row 0: Fullscreen topmost
             card.addSubview(makeLabel(tr("全屏游戏/应用置顶显示", "Always On Top Over Fullscreen"), yPos: 4, width: 320))
             fullscreenOverlaySwitch = makeSwitch(s.fullScreenOverlay, action: #selector(onToggleFullscreenOverlay), yPos: 4)
@@ -1227,12 +1680,26 @@ final class SettingsWindowController: NSWindowController {
             card.addSubview(autoStartSwitch)
             addRowDivider(card, yPos: r5 + rh)
 
-            // Row 6: Language
+            // Row 6: Hourly Announcement
             let r6 = 4 + rh * 6
-            card.addSubview(makeLabel("语言 / Language", yPos: r6, width: 180))
+            card.addSubview(makeLabel(tr("整点猫头报时（HH:00 弹框提示）", "Hourly Head-Toast Announcement (HH:00)"), yPos: r6, width: 340))
+            hourlySwitch = makeSwitch(s.hourlyAnnouncement, action: #selector(onToggleHourlyAnnouncement), yPos: r6)
+            card.addSubview(hourlySwitch)
+            addRowDivider(card, yPos: r6 + rh)
+
+            // Row 7: Auto Headphones on Music
+            let r7 = 4 + rh * 7
+            card.addSubview(makeLabel(tr("听歌自动戴耳机（音乐/媒体播放器）", "Auto Headphones on Music"), yPos: r7, width: 340))
+            autoHeadphonesSwitch = makeSwitch(s.autoHeadphonesOnMusic, action: #selector(onToggleAutoHeadphones), yPos: r7)
+            card.addSubview(autoHeadphonesSwitch)
+            addRowDivider(card, yPos: r7 + rh)
+
+            // Row 8: Language
+            let r8 = 4 + rh * 8
+            card.addSubview(makeLabel("语言 / Language", yPos: r8, width: 180))
             langSeg = NSSegmentedControl(labels: ["简体中文", "English"], trackingMode: .selectOne, target: self, action: #selector(onLangChanged))
             langSeg.selectedSegment = s.isEnglish ? 1 : 0
-            langSeg.frame = NSRect(x: cardW - 14 - 166, y: r6 + 6, width: 166, height: 24)
+            langSeg.frame = NSRect(x: cardW - 14 - 166, y: r8 + 6, width: 166, height: 24)
             card.addSubview(langSeg)
         }
 
@@ -1274,8 +1741,10 @@ final class SettingsWindowController: NSWindowController {
         guard idx >= 0 && idx < skinIds.count else { return }
         let token = skinIds[idx]
         if token.hasPrefix("custom:") {
+            CatSettings.shared.overrideSkinIris = false
             CatSettings.shared.customSkin = String(token.dropFirst(7))
         } else if token.hasPrefix("coat:"), let coat = CatCoatTheme(rawValue: String(token.dropFirst(5))) {
+            CatSettings.shared.overrideSkinIris = false
             CatSettings.shared.customSkin = ""
             CatSettings.shared.coatTheme = coat
             switch coat {
@@ -1289,6 +1758,19 @@ final class SettingsWindowController: NSWindowController {
             }
         }
         onSettingsChanged?()
+        rebuildUI()
+    }
+
+    @objc private func onTapRenameSkin() {
+        let id = CatSettings.shared.customSkin
+        guard !id.isEmpty else { return }
+        onRenameSkin?(id)
+    }
+
+    @objc private func onTapDeleteSkin() {
+        let id = CatSettings.shared.customSkin
+        guard !id.isEmpty else { return }
+        onDeleteSkin?(id)
     }
 
     @objc private func onKBSelected() {
@@ -1307,6 +1789,7 @@ final class SettingsWindowController: NSWindowController {
     @objc private func onEyeSelected() {
         let idx = eyePopup.indexOfSelectedItem
         guard idx >= 0 && idx < EyeColorTheme.allCases.count else { return }
+        CatSettings.shared.overrideSkinIris = true
         CatSettings.shared.eyeTheme = EyeColorTheme.allCases[idx]
         onSettingsChanged?()
     }
@@ -1357,6 +1840,40 @@ final class SettingsWindowController: NSWindowController {
     @objc private func onTapDressingRoom() { onOpenDressingRoom?() }
     @objc private func onTapImportKB() { onImportKeyboardSkin?() }
 
+    @objc private func onTapChooseSkinsDir() {
+        guard let win = window else { return }
+        let panel = NSOpenPanel()
+        panel.title = tr("选择皮肤文件夹", "Choose Skins Folder")
+        panel.prompt = tr("选择", "Choose")
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.canCreateDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.directoryURL = SkinLibrary.directory
+        panel.beginSheetModal(for: win) { [weak self] response in
+            guard response == .OK, let url = panel.url else { return }
+            CatSettings.shared.customSkinsDirectory = url.path
+            SkinLibrary.shared.reload()
+            self?.onSkinsDirectoryChanged?()
+            self?.onSettingsChanged?()
+            self?.rebuildUI()
+        }
+    }
+
+    @objc private func onTapOpenSkinsDir() {
+        let dir = SkinLibrary.directory
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        NSWorkspace.shared.open(dir)
+    }
+
+    @objc private func onTapResetSkinsDir() {
+        CatSettings.shared.customSkinsDirectory = ""
+        SkinLibrary.shared.reload()
+        onSkinsDirectoryChanged?()
+        onSettingsChanged?()
+        rebuildUI()
+    }
+
     @objc private func onToggleDragAnim() {
         CatSettings.shared.enableDragAnimation = (dragAnimSwitch.state == .on)
         onSettingsChanged?()
@@ -1394,6 +1911,11 @@ final class SettingsWindowController: NSWindowController {
         onSettingsChanged?()
     }
 
+    @objc private func onToggleLevelKeyboard() {
+        CatSettings.shared.levelKeyboard = (levelKeyboardSwitch.state == .on)
+        onSettingsChanged?()
+    }
+
     @objc private func onTabletSelected() {
         CatSettings.shared.tabletMode = max(0, min(2, tabletPopup.indexOfSelectedItem))
         onSettingsChanged?()
@@ -1411,6 +1933,10 @@ final class SettingsWindowController: NSWindowController {
     @objc private func onToggleAutoHide() {
         CatSettings.shared.autoHideFullscreen = (autoHideSwitch.state == .on)
         onAutoHideChanged?()
+    }
+
+    @objc private func onToggleAutoHeadphones() {
+        CatSettings.shared.autoHeadphonesOnMusic = (autoHeadphonesSwitch.state == .on)
     }
 
     @objc private func onOBSSelected() {
@@ -1431,6 +1957,10 @@ final class SettingsWindowController: NSWindowController {
 
     @objc private func onToggleAutoStart() {
         setAutoStart?(autoStartSwitch.state == .on)
+    }
+
+    @objc private func onToggleHourlyAnnouncement() {
+        CatSettings.shared.hourlyAnnouncement = (hourlySwitch.state == .on)
     }
 
     @objc private func onLangChanged() {

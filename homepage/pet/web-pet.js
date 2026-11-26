@@ -73,16 +73,28 @@
     return v < lo ? lo : (v > hi ? hi : v);
   }
 
+  function emit(name, detail) {
+    try { window.dispatchEvent(new CustomEvent(name, { detail: detail })); } catch (err) { /* old browsers */ }
+  }
+
   function updateKeyCounter() {
     if (keyCounterEl) keyCounterEl.textContent = 'KEYS ' + totalKeys;
+    emit('kuro:keys', { total: totalKeys });
+  }
+
+  function applyPose(pose) {
+    forcedPose = pose || 'idle';
+    document.querySelectorAll('[data-pet-pose]').forEach(function (btn) {
+      var on = btn.getAttribute('data-pet-pose') === forcedPose;
+      btn.classList.toggle('active', on);
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    live.lastActivity = performance.now();
+    emit('kuro:pose', { pose: forcedPose });
   }
 
   function setForcedPose(pose) {
-    forcedPose = (forcedPose === pose) ? 'idle' : pose;
-    document.querySelectorAll('[data-pet-pose]').forEach(function (btn) {
-      btn.classList.toggle('active', btn.getAttribute('data-pet-pose') === forcedPose);
-    });
-    live.lastActivity = performance.now();
+    applyPose(forcedPose === pose ? 'idle' : pose);
   }
 
   function selectSkinById(id) {
@@ -97,8 +109,9 @@
     document.querySelectorAll('.pet-skin-chip').forEach(function (chip) {
       var active = chip.getAttribute('data-skin-id') === id;
       chip.classList.toggle('active', active);
-      chip.setAttribute('aria-selected', active ? 'true' : 'false');
+      chip.setAttribute(chip.getAttribute('role') === 'radio' ? 'aria-checked' : 'aria-selected', active ? 'true' : 'false');
     });
+    emit('kuro:skin', { id: item.id, labelZh: item.labelZh, labelEn: item.labelEn, index: idx });
   }
 
   function setUndocked(undock) {
@@ -220,11 +233,12 @@
           live.dragOffsetX = clamp(dx * 0.35, -36, 36);
           live.dragOffsetY = clamp(dy * 0.35, -28, 22);
         }
-        // Feed 2D inertia velocity for swinging dangling paws & tail
-        var vx = clamp((e.clientX - live.draggingCat.lastX) * 0.08, -1.5, 1.5);
-        var vy = clamp((e.clientY - live.draggingCat.lastY) * 0.08, -1.5, 1.5);
-        state.dragSwingX = clamp((state.dragSwingX || 0) * 0.72 + vx * 0.55, -1.4, 1.4);
-        state.dragSwingY = clamp((state.dragSwingY || 0) * 0.72 + vy * 0.55, -1.2, 1.2);
+        // Feed 2D inertia velocity into renderer's scruffSwing / scruffSwingY / scruffTailSwing springs
+        // (Dragging right -> negative swingTarget so lower torso, limbs & tail trail naturally behind motion)
+        var vx = clamp(-(e.clientX - live.draggingCat.lastX) * 0.065, -0.95, 0.95);
+        var vy = clamp(-(e.clientY - live.draggingCat.lastY) * 0.055, -0.78, 0.78);
+        state.dragSwingTarget = clamp((state.dragSwingTarget || 0) * 0.65 + vx * 0.65, -0.95, 0.95);
+        state.dragSwingYTarget = clamp((state.dragSwingYTarget || 0) * 0.65 + vy * 0.65, -0.78, 0.78);
         live.draggingCat.lastX = e.clientX;
         live.draggingCat.lastY = e.clientY;
       }
@@ -243,7 +257,7 @@
         live.lastActivity = now;
       }
       if (typeof Renderer.updateTailHover === 'function') {
-        Renderer.updateTailHover(state, pos, activeSkin);
+        Renderer.updateTailHover(state, activeSkin, pos);
       }
     }
   }, { passive: true });
@@ -336,11 +350,19 @@
 
   // Main 60fps animation loop (mirrors Workshop plaza.js physics)
   var lastFrameMs = performance.now();
+  // Skip all work while the canvas is scrolled out of view (saves battery on phones).
+  var canvasOnScreen = true;
+  if ('IntersectionObserver' in window) {
+    new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) { canvasOnScreen = entry.isIntersecting; });
+    }, { rootMargin: '120px' }).observe(canvas);
+  }
+
   function tick(nowMs) {
     var dt = Math.min(0.05, Math.max(0.001, (nowMs - lastFrameMs) / 1000));
     lastFrameMs = nowMs;
 
-    if (activeSkin) {
+    if (activeSkin && (canvasOnScreen || isUndocked)) {
       state.time += dt;
       var isPointerDragging = !!(live.draggingCat && live.draggingCat.engaged);
       var isDraggingNow = isPointerDragging || forcedPose === 'drag';
@@ -515,7 +537,7 @@
 
   // Load curated skin bundle (supports root / and /en/ subpages)
   var assetBase = (typeof window.KUROCAT_ASSET_BASE === 'string') ? window.KUROCAT_ASSET_BASE : '';
-  fetch(assetBase + 'pet/skins.json?v=20261125c')
+  fetch(assetBase + 'pet/skins.json?v=' + (window.KUROCAT_BUILD || '20261125c'))
     .then(function (r) { return r.json(); })
     .then(function (list) {
       skinEntries = list.map(function (entry) {
@@ -534,6 +556,69 @@
     .catch(function () {
       // Keep fallback siamese template active
     });
+
+  // Small public API so the page can direct the live cat (skin stickers, scroll story, float dock).
+  window.KuroWebPet = {
+    canvas: canvas,
+    selectSkin: selectSkinById,
+    nextSkin: function (step) {
+      if (!skinEntries.length) return;
+      var n = skinEntries.length;
+      selectSkinById(skinEntries[(activeSkinIndex + (step || 1) + n) % n].id);
+    },
+    getSkinId: function () { return skinEntries[activeSkinIndex] ? skinEntries[activeSkinIndex].id : 'siamese'; },
+    getSkins: function () {
+      return skinEntries.map(function (e) { return { id: e.id, labelZh: e.labelZh, labelEn: e.labelEn }; });
+    },
+    setPose: function (pose) { applyPose(pose); },
+    togglePose: setForcedPose,
+    getPose: function () { return forcedPose; },
+    // Point the head/eyes as if the cursor were at (x, y) in -1..1 (used by the hunting demo).
+    look: function (x, y) {
+      live.pointerActive = true;
+      live.yaw = clamp(x, -1, 1);
+      live.pitch = clamp(y, -1, 1) * 0.85;
+      live.gazeX = live.yaw;
+      live.gazeY = clamp(y, -1, 1);
+    },
+    hunt: function (level) {
+      live.huntEnergy = clamp(typeof level === 'number' ? level : 1, 0, 1);
+      live.lastActivity = performance.now();
+    },
+    tapKeys: function (count) {
+      if (!activeSkin) return;
+      for (var i = 0; i < (count || 1); i++) {
+        Renderer.triggerKeyTap(state, activeSkin);
+        totalKeys += 1;
+      }
+      live.lastKeyTime = performance.now();
+      live.lastActivity = live.lastKeyTime;
+      updateKeyCounter();
+    },
+    // Simulate held keys (e.g. 3 keys = hind foot, 4 keys = tail) for the scroll story.
+    holdKeys: function (codes) {
+      Array.from(pressedCaps.keys()).forEach(function (k) {
+        if (k.indexOf('demo-') === 0) pressedCaps.delete(k);
+      });
+      if (!activeSkin) return;
+      (codes || []).forEach(function (code) {
+        var cap = Renderer.mapKeyboardEventToCap({ code: code, key: '' });
+        pressedCaps.set('demo-' + code, cap);
+        Renderer.triggerKeyTap(state, activeSkin, cap);
+      });
+      live.lastKeyTime = performance.now();
+      live.lastActivity = live.lastKeyTime;
+    },
+    releaseKeys: function () {
+      Array.from(pressedCaps.keys()).forEach(function (k) {
+        if (k.indexOf('demo-') === 0) pressedCaps.delete(k);
+      });
+    },
+    setUndocked: setUndocked,
+    isUndocked: function () { return isUndocked; },
+    getKeyCount: function () { return totalKeys; }
+  };
+  emit('kuro:ready', {});
 
   window.requestAnimationFrame(tick);
 })();
